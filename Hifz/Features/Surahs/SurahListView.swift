@@ -54,6 +54,9 @@ struct SurahListView: View {
             .searchable(text: $search, prompt: "Search")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { ReaderIndexView() } label: { Image(systemName: "book") }
+                }
                 if granularity == .ayahRange {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showAddAyahRange = true } label: { Image(systemName: "plus") }
