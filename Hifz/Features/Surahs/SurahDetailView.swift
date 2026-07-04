@@ -69,6 +69,20 @@ struct SurahDetailView: View {
         }
         .navigationTitle(unit.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if unit.surahNumber > 0 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SurahReaderView(
+                            surahNumber: unit.surahNumber,
+                            scrollTo: unit.granularity == .ayahRange ? unit.ayahFrom : nil
+                        )
+                    } label: {
+                        Label("Read", systemImage: "book")
+                    }
+                }
+            }
+        }
         .onAppear {
             if let p = existing { status = p.status; strength = p.strength }
         }
