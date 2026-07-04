@@ -8,7 +8,8 @@ struct HifzApp: App {
     init() {
         do {
             container = try ModelContainer(
-                for: MemorizationProgress.self, ReviewLog.self, AppSettings.self
+                for: Schema.current,
+                migrationPlan: HifzMigrationPlan.self
             )
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
