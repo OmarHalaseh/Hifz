@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Xcode build output
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad
+
+# Per-user Xcode state
+xcuserdata/
+
+# XcodeGen generates the Xcode project from project.yml (source of truth).
+Hifz.xcodeproj/
+
+# Swift Package Manager
+.build/
+.swiftpm/

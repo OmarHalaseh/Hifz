@@ -1,0 +1,44 @@
+name: Hifz
+options:
+  bundleIdPrefix: com.omarhalaseh
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Hifz:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Hifz
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarhalaseh.Hifz
+        INFOPLIST_FILE: Hifz/Info.plist
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Hifz
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SUPPORTS_MACCATALYST: NO
+  HifzTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: HifzTests
+    dependencies:
+      - target: Hifz
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarhalaseh.HifzTests
+        GENERATE_INFOPLIST_FILE: YES
