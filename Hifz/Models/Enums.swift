@@ -35,6 +35,27 @@ enum Granularity: String, Codable, CaseIterable, Identifiable {
         case .ayahRange: return "text.line.first.and.arrowtriangle.forward"
         }
     }
+
+    /// How many ayahs one unit of the daily goal represents at this granularity,
+    /// or `nil` to count the goal directly in ayahs (surah/ayah-range vary too
+    /// much to be a meaningful daily unit). Page and juz are even shares of the
+    /// whole, matching `MemorizationForecast.ayahWeight`.
+    var ayahsPerGoalUnit: Double? {
+        switch self {
+        case .page: return Double(QuranData.totalAyahs) / Double(QuranData.totalPages)
+        case .juz:  return Double(QuranData.totalAyahs) / Double(QuranData.totalJuz)
+        case .surah, .ayahRange: return nil
+        }
+    }
+
+    /// Singular/plural noun for the daily-goal unit ("page"/"pages", …).
+    var goalUnitName: (one: String, many: String) {
+        switch self {
+        case .page: return ("page", "pages")
+        case .juz:  return ("juz", "ajzāʼ")
+        case .surah, .ayahRange: return ("ayah", "ayahs")
+        }
+    }
 }
 
 /// The lifecycle status of a memorization unit.

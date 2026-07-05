@@ -72,6 +72,13 @@ enum QuranText {
         asset.surahs.flatMap { s in s.ayahs.filter { $0.page == page }.map { (s.number, $0) } }
     }
 
+    /// Every ayah in mushaf order — the source of atoms for the ḥifẓ program.
+    static var orderedAtoms: [(surah: Int, ayah: QuranAyah)] {
+        asset.surahs
+            .sorted { $0.number < $1.number }
+            .flatMap { s in s.ayahs.sorted { $0.n < $1.n }.map { (s.number, $0) } }
+    }
+
     // MARK: - Integrity
 
     /// The canonical string the asset's SHA-256 is computed over. Must exactly

@@ -58,7 +58,47 @@ private struct SettingsForm: View {
 
     private var goalFooter: String {
         let days = Int((Double(QuranData.totalAyahs) / Double(max(1, settings.dailyNewAyahs))).rounded(.up))
-        return "At \(settings.dailyNewAyahs) new ayahs a day you'd finish the whole Quran in about \(GoalSetupView.humanDuration(days: days))."
+        let n = goalUnitsPerDay
+        let names = settings.granularity.goalUnitName
+        return "At \(n) \(n == 1 ? names.one : names.many) a day you'd finish the whole Quran in about \(GoalSetupView.humanDuration(days: days))."
+    }
+
+    // MARK: Daily goal expressed in the tracking unit (page / juz / ayah)
+
+    /// The daily "new" goal shown in the current granularity's unit. The canonical
+    /// pace stays `dailyNewAyahs` (drives the forecast + reminders); page/juz just
+    /// convert to and from it, so no schema change is needed.
+    private var goalUnitsPerDay: Int {
+        guard let per = settings.granularity.ayahsPerGoalUnit else { return settings.dailyNewAyahs }
+        return max(1, Int((Double(settings.dailyNewAyahs) / per).rounded()))
+    }
+
+    private var maxGoalUnits: Int {
+        switch settings.granularity {
+        case .page: return QuranData.totalPages
+        case .juz:  return QuranData.totalJuz
+        default:    return 100
+        }
+    }
+
+    private var goalUnitsBinding: Binding<Int> {
+        Binding(
+            get: { goalUnitsPerDay },
+            set: { newUnits in
+                if let per = settings.granularity.ayahsPerGoalUnit {
+                    settings.dailyNewAyahs = max(1, Int((Double(newUnits) * per).rounded()))
+                } else {
+                    settings.dailyNewAyahs = newUnits
+                }
+                save(); rescheduleNotifications()
+            }
+        )
+    }
+
+    private var goalStepperLabel: String {
+        let n = goalUnitsPerDay
+        let names = settings.granularity.goalUnitName
+        return "\(n) new \(n == 1 ? names.one : names.many) per day"
     }
 
     var body: some View {
@@ -94,8 +134,7 @@ private struct SettingsForm: View {
             }
 
             Section {
-                Stepper("\(settings.dailyNewAyahs) new ayahs per day", value: $settings.dailyNewAyahs, in: 1...100)
-                    .onChange(of: settings.dailyNewAyahs) { _, _ in save(); rescheduleNotifications() }
+                Stepper(goalStepperLabel, value: goalUnitsBinding, in: 1...maxGoalUnits)
                 Stepper("\(settings.dailyGoal) reviews per day", value: $settings.dailyGoal, in: 1...100)
                     .onChange(of: settings.dailyGoal) { _, _ in save() }
             } header: {

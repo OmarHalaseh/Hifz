@@ -55,6 +55,9 @@ struct SurahListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
                 ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { MushafPageView() } label: { Image(systemName: "book.pages") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { ReaderIndexView() } label: { Image(systemName: "book") }
                 }
                 if granularity == .ayahRange {
