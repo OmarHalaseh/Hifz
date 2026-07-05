@@ -6,6 +6,11 @@ struct DashboardView: View {
     @Query private var allProgress: [MemorizationProgress]
     @Query private var allLogs: [ReviewLog]
     @Query private var settingsList: [AppSettings]
+    @Query private var hifzAyahs: [HifzAyah]
+    @Query private var hifzStateList: [HifzProgramState]
+
+    /// Jumps the app to the Ḥifẓ tab (injected by `RootView`).
+    var onOpenHifz: () -> Void = {}
 
     @State private var showGoalSheet = false
 
@@ -34,6 +39,13 @@ struct DashboardView: View {
         return allLogs.filter { Calendar.current.startOfDay(for: $0.date) == today }.count
     }
 
+    // MARK: - Ḥifẓ program (Sabaq / Sabqi / Manzil)
+
+    private var sabqiDue: Int { HifzProgram.sabqiQueue(hifzAyahs).count }
+    private var sabaqUnlocked: Bool {
+        HifzProgram.isSabaqUnlocked(sabqiCount: sabqiDue, sabqiClearedOn: hifzStateList.first?.sabqiClearedOn)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -45,6 +57,8 @@ struct DashboardView: View {
                     Text("\(memorizedCount) of \(totalUnits) \(granularity.shortLabel.lowercased())s memorized")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    hifzCard
 
                     reviseCard
 
@@ -96,5 +110,39 @@ struct DashboardView: View {
         }
         .buttonStyle(.plain)
         .disabled(dueItems.isEmpty)
+    }
+
+    /// Today's ḥifẓ call-to-action: Sabqi comes first (it blocks new Sabaq), else
+    /// prompt today's new lesson. Tapping jumps to the Ḥifẓ tab.
+    @ViewBuilder
+    private var hifzCard: some View {
+        let showSabqi = sabqiDue > 0
+        Button(action: onOpenHifz) {
+            HStack(spacing: 14) {
+                Image(systemName: showSabqi ? "clock.arrow.circlepath" : "sparkles")
+                    .font(.title)
+                    .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(showSabqi ? "Sabqi · \(sabqiDue) to recite" : "Sabaq · New lesson")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text(showSabqi
+                         ? "Recite recent memorization, then unlock a new lesson."
+                         : (sabaqUnlocked ? "Start today's portion — quality over speed."
+                                          : "Clear today's Sabqi to unlock a new lesson."))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.8))
+            }
+            .padding()
+            .background(
+                LinearGradient(colors: showSabqi ? [.orange, .pink] : [.purple, .indigo],
+                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 18)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
