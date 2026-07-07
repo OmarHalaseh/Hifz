@@ -134,6 +134,21 @@ private struct SettingsForm: View {
             }
 
             Section {
+                Picker(selection: $settings.sabaqUnit) {
+                    ForEach(MushafUnitKind.allCases) { unit in
+                        Text("\(unit.label) · \(unit.baseLines) \(unit.baseLines == 1 ? "line" : "lines")").tag(unit)
+                    }
+                } label: {
+                    Text("New lesson size")
+                }
+                .onChange(of: settings.sabaqUnit) { _, _ in save() }
+            } header: {
+                Text("Memorization")
+            } footer: {
+                Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.")
+            }
+
+            Section {
                 Stepper(goalStepperLabel, value: goalUnitsBinding, in: 1...maxGoalUnits)
                 Stepper("\(settings.dailyGoal) reviews per day", value: $settings.dailyGoal, in: 1...100)
                     .onChange(of: settings.dailyGoal) { _, _ in save() }

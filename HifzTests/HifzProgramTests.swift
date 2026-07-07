@@ -27,9 +27,25 @@ final class HifzProgramTests: XCTestCase {
         XCTAssertEqual(HifzProgram.portionLines(recentAccuracy: 0.95), 7)  // 5 + 2
     }
 
-    func testPortionLinesClampsTo3Through10() {
-        XCTAssertEqual(HifzProgram.portionLines(baseLines: 2, recentAccuracy: 0.5), 3)   // floor
-        XCTAssertEqual(HifzProgram.portionLines(baseLines: 10, recentAccuracy: 0.99), 10) // ceiling
+    func testPortionLinesClampsTo1ThroughOnePage() {
+        // Floor: a row (1 line) on a weak day can't go below 1.
+        XCTAssertEqual(HifzProgram.portionLines(baseLines: 1, recentAccuracy: 0.5), 1)
+        // Ceiling: a page (15 lines) on a strong day is capped at one page.
+        XCTAssertEqual(HifzProgram.portionLines(baseLines: 15, recentAccuracy: 0.99), 15)
+    }
+
+    func testPortionLinesHonorsChosenMushafUnitAtNeutralAccuracy() {
+        for unit in MushafUnitKind.allCases {
+            XCTAssertEqual(
+                HifzProgram.portionLines(baseLines: unit.baseLines, recentAccuracy: 0.7),
+                unit.baseLines,
+                "\(unit) should size its Sabaq to its own line count on a neutral day"
+            )
+        }
+    }
+
+    func testDefaultSabaqUnitIsQuarterPage() {
+        XCTAssertEqual(AppSettings().sabaqUnit, .quarter)
     }
 
     func testAyahCountForLinesIsAtLeastOne() {

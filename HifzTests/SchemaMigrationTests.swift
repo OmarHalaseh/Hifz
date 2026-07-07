@@ -21,9 +21,13 @@ final class SchemaMigrationTests: XCTestCase {
         XCTAssertEqual(SchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
         XCTAssertEqual(SchemaV3.models.count, 6)
 
-        // The plan chains V1 → V2 → V3, each a lightweight stage.
-        XCTAssertEqual(HifzMigrationPlan.schemas.count, 3)
-        XCTAssertEqual(HifzMigrationPlan.stages.count, 2)
+        // V4 adds the daily-lesson-size attribute (sabaqUnit) to AppSettings.
+        XCTAssertEqual(SchemaV4.versionIdentifier, Schema.Version(4, 0, 0))
+        XCTAssertEqual(SchemaV4.models.count, 6)
+
+        // The plan chains V1 → V2 → V3 → V4, each a lightweight stage.
+        XCTAssertEqual(HifzMigrationPlan.schemas.count, 4)
+        XCTAssertEqual(HifzMigrationPlan.stages.count, 3)
     }
 
     func testVersionedContainerBuildsAndPersists() throws {

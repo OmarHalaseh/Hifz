@@ -38,14 +38,25 @@ enum SchemaV3: VersionedSchema {
     }
 }
 
+/// V4 adds `sabaqUnit` (mushaf-unit size of the daily new lesson) to `AppSettings`.
+/// Non-optional with a default → lightweight migration.
+enum SchemaV4: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(4, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        [MemorizationProgress.self, ReviewLog.self, AppSettings.self,
+         HifzAyah.self, MistakeLog.self, HifzProgramState.self]
+    }
+}
+
 /// The migration plan the app's `ModelContainer` runs on launch.
 enum HifzMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self, SchemaV3.self]
+        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self]
     }
 
     static var stages: [MigrationStage] {
-        [migrateV1toV2, migrateV2toV3]
+        [migrateV1toV2, migrateV2toV3, migrateV3toV4]
     }
 
     /// V1 → V2 only introduces new model types; existing rows are untouched.
@@ -59,9 +70,15 @@ enum HifzMigrationPlan: SchemaMigrationPlan {
         fromVersion: SchemaV2.self,
         toVersion: SchemaV3.self
     )
+
+    /// V3 → V4 adds the defaulted `sabaqUnit` attribute to `AppSettings`.
+    static let migrateV3toV4 = MigrationStage.lightweight(
+        fromVersion: SchemaV3.self,
+        toVersion: SchemaV4.self
+    )
 }
 
 extension Schema {
     /// The current live schema, built from the latest versioned schema.
-    static var current: Schema { Schema(versionedSchema: SchemaV3.self) }
+    static var current: Schema { Schema(versionedSchema: SchemaV4.self) }
 }
