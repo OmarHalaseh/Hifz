@@ -76,6 +76,9 @@ struct SurahListView: View {
         switch granularity {
         case .surah: return "Surahs"
         case .page: return "Pages"
+        case .halfPage: return "Half Pages"
+        case .quarterPage: return "Quarter Pages"
+        case .line: return "Rows"
         case .juz: return "Ajza"
         case .ayahRange: return "Ayah Ranges"
         }
