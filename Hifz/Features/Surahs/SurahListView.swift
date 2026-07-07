@@ -5,6 +5,7 @@ struct SurahListView: View {
     @Environment(\.modelContext) private var context
     @Query private var allProgress: [MemorizationProgress]
     @Query private var settingsList: [AppSettings]
+    @Query private var hifzAyahs: [HifzAyah]
 
     @State private var search = ""
     @State private var statusFilter: MemorizationStatus? = nil
@@ -13,8 +14,17 @@ struct SurahListView: View {
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var granularity: Granularity { settings.granularity }
 
-    private var progressByKey: [String: MemorizationProgress] {
-        Dictionary(allProgress.map { ($0.unitKey, $0) }, uniquingKeysWith: { a, _ in a })
+    /// Effective status per unit, unioning the ḥifẓ program's ayah coverage with
+    /// any manual mark (see `MemorizationCoverage`).
+    private var statusByKey: [String: MemorizationStatus] {
+        MemorizationCoverage.statusByUnitKey(
+            units: units,
+            memorizedKeys: MemorizationCoverage.memorizedKeys(from: hifzAyahs),
+            stored: MemorizationCoverage.storedStatus(from: allProgress, granularity: granularity)
+        )
+    }
+    private func status(for unit: TrackUnit) -> MemorizationStatus {
+        statusByKey[unit.key] ?? .notStarted
     }
 
     private var units: [TrackUnit] {
@@ -31,8 +41,7 @@ struct SurahListView: View {
 
     private var filteredUnits: [TrackUnit] {
         units.filter { unit in
-            let status = progressByKey[unit.key]?.status ?? .notStarted
-            let matchesStatus = statusFilter == nil || status == statusFilter
+            let matchesStatus = statusFilter == nil || status(for: unit) == statusFilter
             let matchesSearch = search.isEmpty
                 || unit.title.localizedCaseInsensitiveContains(search)
                 || unit.subtitle.localizedCaseInsensitiveContains(search)
@@ -89,7 +98,7 @@ struct SurahListView: View {
             NavigationLink {
                 SurahDetailView(unit: unit)
             } label: {
-                UnitRow(unit: unit, status: progressByKey[unit.key]?.status ?? .notStarted)
+                UnitRow(unit: unit, status: status(for: unit))
             }
         }
         .listStyle(.plain)
