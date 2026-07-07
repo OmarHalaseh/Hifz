@@ -22,11 +22,17 @@ struct DashboardView: View {
     }
     private var totalUnits: Int { QuranData.units(for: granularity).count }
 
-    private var scoped: [MemorizationProgress] {
-        allProgress.filter { $0.granularity == granularity }
+    /// Unified counts: a unit is memorized if the program has all its ayahs
+    /// memorized or it was marked manually (see `MemorizationCoverage`).
+    private var coverage: (memorized: Int, learning: Int, notStarted: Int) {
+        MemorizationCoverage.statusCounts(
+            units: QuranData.units(for: granularity),
+            memorizedKeys: MemorizationCoverage.memorizedKeys(from: hifzAyahs),
+            stored: MemorizationCoverage.storedStatus(from: allProgress, granularity: granularity)
+        )
     }
-    private var memorizedCount: Int { scoped.filter { $0.status == .memorized }.count }
-    private var learningCount: Int { scoped.filter { $0.status == .learning }.count }
+    private var memorizedCount: Int { coverage.memorized }
+    private var learningCount: Int { coverage.learning }
     private var fraction: Double {
         totalUnits == 0 ? 0 : Double(memorizedCount) / Double(totalUnits)
     }
