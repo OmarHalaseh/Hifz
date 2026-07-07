@@ -7,10 +7,11 @@ struct StatisticsView: View {
     @Query private var allProgress: [MemorizationProgress]
     @Query private var allLogs: [ReviewLog]
     @Query private var settingsList: [AppSettings]
+    @Query private var hifzAyahs: [HifzAyah]
 
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var granularity: Granularity { settings.granularity }
-    private var scoped: [MemorizationProgress] { allProgress.filter { $0.granularity == granularity } }
+    private var memorizedKeys: Set<String> { MemorizationCoverage.memorizedKeys(from: hifzAyahs) }
 
     var body: some View {
         NavigationStack {
@@ -31,14 +32,16 @@ struct StatisticsView: View {
     // MARK: - Status breakdown
 
     private var statusCounts: [(status: MemorizationStatus, count: Int)] {
-        let total = QuranData.units(for: granularity).count
-        let memorized = scoped.filter { $0.status == .memorized }.count
-        let learning = scoped.filter { $0.status == .learning }.count
-        let notStarted = max(0, total - memorized - learning)
+        // Unified: the ḥifẓ program's ayah coverage and manual marks both count.
+        let c = MemorizationCoverage.statusCounts(
+            units: QuranData.units(for: granularity),
+            memorizedKeys: memorizedKeys,
+            stored: MemorizationCoverage.storedStatus(from: allProgress, granularity: granularity)
+        )
         return [
-            (.memorized, memorized),
-            (.learning, learning),
-            (.notStarted, notStarted),
+            (.memorized, c.memorized),
+            (.learning, c.learning),
+            (.notStarted, c.notStarted),
         ]
     }
 
@@ -106,8 +109,22 @@ struct StatisticsView: View {
 
     private struct CumPoint: Identifiable { let id = UUID(); let date: Date; let total: Int }
 
+    /// Cumulative *ayahs* memorized over time, unioning the program's per-ayah
+    /// timestamps with manual unit marks (each ayah counted once, at the earliest
+    /// date it was memorized either way).
     private var cumulativeMemorized: [CumPoint] {
-        let dates = scoped.compactMap { $0.memorizedAt }.sorted()
+        var firstMemorized: [String: Date] = [:]
+        for ayah in hifzAyahs {
+            guard let date = ayah.memorizedAt else { continue }
+            firstMemorized[ayah.key] = min(firstMemorized[ayah.key] ?? date, date)
+        }
+        for progress in allProgress where progress.status == .memorized {
+            guard let date = progress.memorizedAt else { continue }
+            for key in MemorizationCoverage.ayahKeys(in: QuranData.unit(for: progress)) {
+                firstMemorized[key] = min(firstMemorized[key] ?? date, date)
+            }
+        }
+        let dates = firstMemorized.values.sorted()
         guard !dates.isEmpty else { return [] }
         var running = 0
         return dates.map { date in
@@ -117,9 +134,9 @@ struct StatisticsView: View {
     }
 
     private var cumulativeSection: some View {
-        card("Memorized over time") {
+        card("Ayahs memorized over time") {
             if cumulativeMemorized.isEmpty {
-                emptyChart("Mark surahs as memorized to see growth")
+                emptyChart("Memorize ayahs to see your growth")
             } else {
                 Chart(cumulativeMemorized) { point in
                     LineMark(x: .value("Date", point.date), y: .value("Total", point.total))
