@@ -18,6 +18,10 @@ final class AppSettings {
     /// Target number of *new* ayahs to memorize each day — drives the forecast.
     var dailyNewAyahs: Int = 3
 
+    /// The mushaf-unit size of the daily new lesson (Sabaq): row / quarter / half /
+    /// page. Sets the base line count the portion sizer nudges around (V4).
+    var sabaqUnit: MushafUnitKind = MushafUnitKind.quarter
+
     /// Whether the user has been through the initial goal-setup prompt.
     var hasSetGoal: Bool = false
 
@@ -34,6 +38,7 @@ final class AppSettings {
         reminderMinute: Int = 0,
         dailyGoal: Int = 5,
         dailyNewAyahs: Int = 3,
+        sabaqUnit: MushafUnitKind = .quarter,
         hasSetGoal: Bool = false,
         memorizeReminderEnabled: Bool = false,
         memorizeReminderHour: Int = 7,
@@ -46,6 +51,7 @@ final class AppSettings {
         self.reminderMinute = reminderMinute
         self.dailyGoal = dailyGoal
         self.dailyNewAyahs = dailyNewAyahs
+        self.sabaqUnit = sabaqUnit
         self.hasSetGoal = hasSetGoal
         self.memorizeReminderEnabled = memorizeReminderEnabled
         self.memorizeReminderHour = memorizeReminderHour

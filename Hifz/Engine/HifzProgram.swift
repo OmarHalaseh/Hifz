@@ -25,8 +25,9 @@ enum HifzProgram {
         max(1, Int((Double(lines) / linesPerPage * ayahsPerPage).rounded()))
     }
 
-    /// Portion size in lines, clamped to 3…10, nudged by recent accuracy (0…1):
-    /// shrink after weak days, grow after strong ones.
+    /// Portion size in lines around the chosen base (the user's daily-lesson unit,
+    /// 1…15), nudged by recent accuracy (0…1): shrink after weak days, grow after
+    /// strong ones. Clamped to 1 line … one page so the chosen unit is honored.
     static func portionLines(baseLines: Int = 5, recentAccuracy: Double) -> Int {
         let adjusted: Int
         switch recentAccuracy {
@@ -34,7 +35,7 @@ enum HifzProgram {
         case ..<0.85: adjusted = baseLines
         default:      adjusted = baseLines + 2
         }
-        return min(10, max(3, adjusted))
+        return min(MushafUnitKind.page.baseLines, max(1, adjusted))
     }
 
     /// Recall accuracy from recent session outcomes (1.0 == flawless, no data == 1.0).
