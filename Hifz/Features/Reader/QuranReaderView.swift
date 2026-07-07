@@ -13,6 +13,13 @@ enum ReaderCoverage {
             case .surah:     return p.surahNumber == surah
             case .juz:       return p.juzNumber == ayah.juz
             case .page:      return p.pageNumber == ayah.page
+            case .halfPage, .quarterPage, .line:
+                // Page-portion units cover a specific line range; the ayah is
+                // memorized only if one of those printed lines carries it.
+                guard p.pageNumber == ayah.page else { return false }
+                return MushafLayout.lines(onPage: p.pageNumber)
+                    .filter { p.lineFrom <= $0.l && $0.l <= p.lineTo }
+                    .contains { $0.segments.contains { $0.surah == surah && $0.ayah == ayah.n } }
             case .ayahRange: return p.surahNumber == surah && p.ayahFrom <= ayah.n && ayah.n <= p.ayahTo
             }
         }

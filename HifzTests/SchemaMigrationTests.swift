@@ -7,7 +7,7 @@ import SwiftData
 /// version + migration stage.
 final class SchemaMigrationTests: XCTestCase {
 
-    func testMigrationPlanIsV1ToV2Additive() {
+    func testMigrationPlanChainsAllVersions() {
         // V1 stays pinned as the base shape (never mutated).
         XCTAssertEqual(SchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(SchemaV1.models.count, 3)
@@ -16,9 +16,14 @@ final class SchemaMigrationTests: XCTestCase {
         XCTAssertEqual(SchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(SchemaV2.models.count, 6)
 
-        // The plan chains V1 → V2 with exactly one (lightweight) stage.
-        XCTAssertEqual(HifzMigrationPlan.schemas.count, 2)
-        XCTAssertEqual(HifzMigrationPlan.stages.count, 1)
+        // V3 keeps the same model set but adds line-range attributes to
+        // MemorizationProgress (half/quarter/row granularities).
+        XCTAssertEqual(SchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
+        XCTAssertEqual(SchemaV3.models.count, 6)
+
+        // The plan chains V1 → V2 → V3, each a lightweight stage.
+        XCTAssertEqual(HifzMigrationPlan.schemas.count, 3)
+        XCTAssertEqual(HifzMigrationPlan.stages.count, 2)
     }
 
     func testVersionedContainerBuildsAndPersists() throws {
