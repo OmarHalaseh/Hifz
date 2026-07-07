@@ -51,9 +51,9 @@ final class NotificationManager {
         guard granted else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Time to memorize"
+        content.title = "Time for your ḥifẓ"
         let ayahWord = dailyAyahs == 1 ? "ayah" : "ayahs"
-        content.body = "Learn \(dailyAyahs) new \(ayahWord) today to stay on track for your goal."
+        content.body = "Recite today's Sabqi first, then learn your new Sabaq (~\(dailyAyahs) \(ayahWord)). A little every day beats a lot rarely."
         content.sound = .default
 
         var components = DateComponents()

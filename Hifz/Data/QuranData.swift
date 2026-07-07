@@ -12,6 +12,8 @@ struct TrackUnit: Identifiable, Hashable {
     let juzNumber: Int
     let ayahFrom: Int
     let ayahTo: Int
+    var lineFrom: Int = 0
+    var lineTo: Int = 0
 
     var id: String { key }
 }
@@ -78,9 +80,67 @@ enum QuranData {
                     surahNumber: 0, pageNumber: n, juzNumber: 0, ayahFrom: 0, ayahTo: 0
                 )
             }
+        case .halfPage:   return halfPageUnits
+        case .quarterPage: return quarterPageUnits
+        case .line:       return lineUnits
         case .ayahRange:
             return []
         }
+    }
+
+    // Page-fraction and row units are derived from the mushaf line layout. They are
+    // memoized because `.line` alone yields ~8.5k units and `units(for:)` is called
+    // on every dashboard render.
+    static let halfPageUnits: [TrackUnit] = pagePortionUnits(kind: .half, granularity: .halfPage)
+    static let quarterPageUnits: [TrackUnit] = pagePortionUnits(kind: .quarter, granularity: .quarterPage)
+    static let lineUnits: [TrackUnit] = pagePortionUnits(kind: .row, granularity: .line)
+
+    private static func pagePortionUnits(kind: MushafUnitKind, granularity: Granularity) -> [TrackUnit] {
+        guard MushafLayout.totalPages > 0 else { return [] }
+        var out: [TrackUnit] = []
+        for page in 1...totalPages {
+            for portion in MushafLayout.portions(onPage: page, kind: kind) {
+                out.append(trackUnit(for: portion, kind: kind, granularity: granularity))
+            }
+        }
+        return out
+    }
+
+    private static func trackUnit(for portion: MushafPortion,
+                                  kind: MushafUnitKind, granularity: Granularity) -> TrackUnit {
+        let surahNo = portion.lines.first?.primarySurah ?? 0
+        let surahName = surah(surahNo)?.transliteration ?? "Surah \(surahNo)"
+        let key: String
+        let title: String
+        let subtitle: String
+        let arabic: String?
+        switch kind {
+        case .row:
+            key = MemorizationProgress.lineKey(page: portion.page, line: portion.lineFrom)
+            title = "Page \(portion.page) · Line \(portion.lineFrom)"
+            subtitle = surahName
+            arabic = portion.lines.first?.text
+        case .quarter:
+            key = MemorizationProgress.quarterPageKey(page: portion.page, index: portion.index)
+            title = "Page \(portion.page) · Quarter \(portion.index)/4"
+            subtitle = "Lines \(portion.lineFrom)–\(portion.lineTo) · \(surahName)"
+            arabic = nil
+        case .half:
+            key = MemorizationProgress.halfPageKey(page: portion.page, index: portion.index)
+            title = "Page \(portion.page) · Half \(portion.index)/2"
+            subtitle = "Lines \(portion.lineFrom)–\(portion.lineTo) · \(surahName)"
+            arabic = nil
+        case .page:
+            key = MemorizationProgress.pageKey(portion.page)
+            title = "Page \(portion.page)"
+            subtitle = surahName
+            arabic = nil
+        }
+        return TrackUnit(
+            key: key, granularity: granularity, title: title, subtitle: subtitle, arabic: arabic,
+            surahNumber: surahNo, pageNumber: portion.page, juzNumber: 0, ayahFrom: 0, ayahTo: 0,
+            lineFrom: portion.lineFrom, lineTo: portion.lineTo
+        )
     }
 
     /// Rebuilds the display unit for an existing progress row.
@@ -95,6 +155,9 @@ enum QuranData {
         case .page:
             return units(for: .page).first { $0.pageNumber == progress.pageNumber }
                 ?? placeholder(progress)
+        case .halfPage, .quarterPage, .line:
+            return units(for: progress.granularity).first { $0.key == progress.unitKey }
+                ?? placeholder(progress)
         case .ayahRange:
             return ayahUnit(surah: progress.surahNumber, from: progress.ayahFrom, to: progress.ayahTo)
         }
@@ -105,7 +168,8 @@ enum QuranData {
             key: progress.unitKey, granularity: progress.granularity,
             title: progress.unitKey, subtitle: "", arabic: nil,
             surahNumber: progress.surahNumber, pageNumber: progress.pageNumber,
-            juzNumber: progress.juzNumber, ayahFrom: progress.ayahFrom, ayahTo: progress.ayahTo
+            juzNumber: progress.juzNumber, ayahFrom: progress.ayahFrom, ayahTo: progress.ayahTo,
+            lineFrom: progress.lineFrom, lineTo: progress.lineTo
         )
     }
 
@@ -133,7 +197,9 @@ extension MemorizationProgress {
             pageNumber: unit.pageNumber,
             juzNumber: unit.juzNumber,
             ayahFrom: unit.ayahFrom,
-            ayahTo: unit.ayahTo
+            ayahTo: unit.ayahTo,
+            lineFrom: unit.lineFrom,
+            lineTo: unit.lineTo
         )
     }
 }

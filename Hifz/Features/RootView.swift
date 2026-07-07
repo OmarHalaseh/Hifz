@@ -1,28 +1,41 @@
 import SwiftUI
 import SwiftData
 
+/// The app's top-level tabs. Tagged so views (e.g. the Today dashboard) can jump
+/// programmatically to the Ḥifẓ tab.
+enum RootTab: Hashable {
+    case today, surahs, hifz, stats, settings
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @Query private var settingsList: [AppSettings]
 
+    @State private var selection: RootTab = .today
+
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
 
     var body: some View {
-        TabView {
-            DashboardView()
+        TabView(selection: $selection) {
+            DashboardView(onOpenHifz: { selection = .hifz })
                 .tabItem { Label("Today", systemImage: "house.fill") }
+                .tag(RootTab.today)
 
             SurahListView()
                 .tabItem { Label("Surahs", systemImage: "book.closed.fill") }
+                .tag(RootTab.surahs)
 
-            RevisionQueueView()
-                .tabItem { Label("Revise", systemImage: "arrow.triangle.2.circlepath") }
+            HifzHomeView()
+                .tabItem { Label("Ḥifẓ", systemImage: "brain.head.profile") }
+                .tag(RootTab.hifz)
 
             StatisticsView()
                 .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
+                .tag(RootTab.stats)
 
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                .tag(RootTab.settings)
         }
         // First-launch goal prompt: "how much do you want to memorize?"
         .sheet(isPresented: Binding(
@@ -44,5 +57,6 @@ extension View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [MemorizationProgress.self, ReviewLog.self, AppSettings.self], inMemory: true)
+        .modelContainer(for: [MemorizationProgress.self, ReviewLog.self, AppSettings.self,
+                              HifzAyah.self, MistakeLog.self, HifzProgramState.self], inMemory: true)
 }
