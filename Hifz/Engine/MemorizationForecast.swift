@@ -82,6 +82,12 @@ extension MemorizationForecast {
             return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalJuz)).rounded())
         case .page:
             return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages)).rounded())
+        case .halfPage:
+            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 2).rounded())
+        case .quarterPage:
+            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 4).rounded())
+        case .line:
+            return max(1, Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 15).rounded()))
         }
     }
 

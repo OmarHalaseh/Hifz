@@ -4,6 +4,9 @@ import SwiftUI
 enum Granularity: String, Codable, CaseIterable, Identifiable {
     case surah
     case page
+    case halfPage
+    case quarterPage
+    case line
     case juz
     case ayahRange
 
@@ -13,6 +16,9 @@ enum Granularity: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .surah: return "By Surah"
         case .page: return "By Page"
+        case .halfPage: return "By Half Page"
+        case .quarterPage: return "By Quarter Page"
+        case .line: return "By Row (line)"
         case .juz: return "By Juz"
         case .ayahRange: return "By Ayah Range"
         }
@@ -22,6 +28,9 @@ enum Granularity: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .surah: return "Surah"
         case .page: return "Page"
+        case .halfPage: return "½ Page"
+        case .quarterPage: return "¼ Page"
+        case .line: return "Row"
         case .juz: return "Juz"
         case .ayahRange: return "Ayah"
         }
@@ -31,10 +40,45 @@ enum Granularity: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .surah: return "book.closed"
         case .page: return "doc.text"
+        case .halfPage: return "doc.text.below.ecg"
+        case .quarterPage: return "square.split.1x2"
+        case .line: return "text.alignright"
         case .juz: return "square.stack"
         case .ayahRange: return "text.line.first.and.arrowtriangle.forward"
         }
     }
+
+    /// How many ayahs one unit of the daily goal represents at this granularity,
+    /// or `nil` to count the goal directly in ayahs (surah/ayah-range vary too
+    /// much to be a meaningful daily unit). Page, its fractions, row, and juz are
+    /// even shares of the whole, matching `MemorizationForecast.ayahWeight`.
+    var ayahsPerGoalUnit: Double? {
+        let perPage = Double(QuranData.totalAyahs) / Double(QuranData.totalPages)
+        switch self {
+        case .page: return perPage
+        case .halfPage: return perPage / 2
+        case .quarterPage: return perPage / 4
+        case .line: return perPage / MushafUnitKind.page.baseLines.asDouble  // one of 15 lines
+        case .juz:  return Double(QuranData.totalAyahs) / Double(QuranData.totalJuz)
+        case .surah, .ayahRange: return nil
+        }
+    }
+
+    /// Singular/plural noun for the daily-goal unit ("page"/"pages", …).
+    var goalUnitName: (one: String, many: String) {
+        switch self {
+        case .page: return ("page", "pages")
+        case .halfPage: return ("half-page", "half-pages")
+        case .quarterPage: return ("quarter-page", "quarter-pages")
+        case .line: return ("row", "rows")
+        case .juz:  return ("juz", "ajzāʼ")
+        case .surah, .ayahRange: return ("ayah", "ayahs")
+        }
+    }
+}
+
+private extension Int {
+    var asDouble: Double { Double(self) }
 }
 
 /// The lifecycle status of a memorization unit.

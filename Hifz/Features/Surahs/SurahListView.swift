@@ -55,6 +55,9 @@ struct SurahListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
                 ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { MushafPageView() } label: { Image(systemName: "book.pages") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { ReaderIndexView() } label: { Image(systemName: "book") }
                 }
                 if granularity == .ayahRange {
@@ -73,6 +76,9 @@ struct SurahListView: View {
         switch granularity {
         case .surah: return "Surahs"
         case .page: return "Pages"
+        case .halfPage: return "Half Pages"
+        case .quarterPage: return "Quarter Pages"
+        case .line: return "Rows"
         case .juz: return "Ajza"
         case .ayahRange: return "Ayah Ranges"
         }

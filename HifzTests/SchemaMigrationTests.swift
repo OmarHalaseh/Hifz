@@ -7,14 +7,23 @@ import SwiftData
 /// version + migration stage.
 final class SchemaMigrationTests: XCTestCase {
 
-    func testMigrationPlanShapeIsV1Only() {
+    func testMigrationPlanChainsAllVersions() {
+        // V1 stays pinned as the base shape (never mutated).
         XCTAssertEqual(SchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(SchemaV1.models.count, 3)
-        XCTAssertEqual(HifzMigrationPlan.schemas.count, 1)
-        XCTAssertTrue(
-            HifzMigrationPlan.stages.isEmpty,
-            "V1 is the base schema and must have no migration stages."
-        )
+
+        // V2 adds the ayah-atomic Sabaq/Sabqi/Manzil models on top of V1.
+        XCTAssertEqual(SchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
+        XCTAssertEqual(SchemaV2.models.count, 6)
+
+        // V3 keeps the same model set but adds line-range attributes to
+        // MemorizationProgress (half/quarter/row granularities).
+        XCTAssertEqual(SchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
+        XCTAssertEqual(SchemaV3.models.count, 6)
+
+        // The plan chains V1 → V2 → V3, each a lightweight stage.
+        XCTAssertEqual(HifzMigrationPlan.schemas.count, 3)
+        XCTAssertEqual(HifzMigrationPlan.stages.count, 2)
     }
 
     func testVersionedContainerBuildsAndPersists() throws {
