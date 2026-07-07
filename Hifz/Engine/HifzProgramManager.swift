@@ -27,8 +27,11 @@ enum HifzProgramManager {
             return state.sabaqKeys.compactMap { key in existing.first { $0.key == key } }
         }
 
-        // Size the portion and pick the next unmemorized ayahs.
-        let lines = HifzProgram.portionLines(recentAccuracy: recentAccuracy)
+        // Size the portion around the user's chosen daily-lesson unit, then pick
+        // the next unmemorized ayahs.
+        let lines = HifzProgram.portionLines(
+            baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
+        )
         let count = HifzProgram.ayahCount(forLines: lines)
         let taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
         let atoms = HifzText.orderedAtomTuples

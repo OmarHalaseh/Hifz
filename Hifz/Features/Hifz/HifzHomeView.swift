@@ -40,7 +40,9 @@ struct HifzHomeView: View {
            Calendar.current.isDate(assigned, inSameDayAs: .now), !state.sabaqKeys.isEmpty {
             return state.sabaqKeys.count
         }
-        let lines = HifzProgram.portionLines(recentAccuracy: recentAccuracy)
+        let lines = HifzProgram.portionLines(
+            baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
+        )
         return HifzProgram.ayahCount(forLines: lines)
     }
 
