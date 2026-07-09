@@ -23,19 +23,6 @@ struct SurahListView: View {
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var granularity: Granularity { settings.granularity }
 
-    /// Effective status per unit, unioning the ḥifẓ program's ayah coverage with
-    /// any manual mark (see `MemorizationCoverage`).
-    private var statusByKey: [String: MemorizationStatus] {
-        MemorizationCoverage.statusByUnitKey(
-            units: units,
-            memorizedKeys: MemorizationCoverage.memorizedKeys(from: hifzAyahs),
-            stored: MemorizationCoverage.storedStatus(from: allProgress, granularity: granularity)
-        )
-    }
-    private func status(for unit: TrackUnit) -> MemorizationStatus {
-        statusByKey[unit.key] ?? .notStarted
-    }
-
     private var units: [TrackUnit] {
         switch granularity {
         case .ayahRange:
@@ -48,9 +35,21 @@ struct SurahListView: View {
         }
     }
 
-    private var filteredUnits: [TrackUnit] {
+    /// Effective status per unit, unioning the ḥifẓ program's ayah coverage with
+    /// any manual mark. Built ONCE per render and threaded down to the rows, so we
+    /// don't rebuild the whole map for every visible row (was O(n²) per render).
+    private func statusByKey(for units: [TrackUnit]) -> [String: MemorizationStatus] {
+        MemorizationCoverage.statusByUnitKey(
+            units: units,
+            memorizedKeys: MemorizationCoverage.memorizedKeys(from: hifzAyahs),
+            stored: MemorizationCoverage.storedStatus(from: allProgress, granularity: granularity)
+        )
+    }
+
+    private func filtered(_ units: [TrackUnit], statuses: [String: MemorizationStatus]) -> [TrackUnit] {
         let matched = units.filter { unit in
-            let matchesStatus = statusFilter == nil || status(for: unit) == statusFilter
+            let st = statuses[unit.key] ?? .notStarted
+            let matchesStatus = statusFilter == nil || st == statusFilter
             let matchesSearch = search.isEmpty
                 || unit.title.localizedCaseInsensitiveContains(search)
                 || unit.subtitle.localizedCaseInsensitiveContains(search)
@@ -61,25 +60,31 @@ struct SurahListView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let unitList = units
+        let statuses = statusByKey(for: unitList)
+        let visible = filtered(unitList, statuses: statuses)
+
+        return NavigationStack {
             Group {
-                if granularity == .ayahRange && units.isEmpty {
+                if granularity == .ayahRange && unitList.isEmpty {
                     emptyAyahState
                 } else {
-                    list
+                    list(visible, statuses: statuses)
                 }
             }
             .navigationTitle(navTitle)
             .searchable(text: $search, prompt: "Search")
+            .safeAreaInset(edge: .bottom) {
+                if selecting { selectionActionBar }
+            }
             .toolbar {
                 if selecting {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Cancel") { exitSelection() }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(allFilteredSelected ? "Deselect All" : "Select All") { toggleSelectAll() }
+                        Button(allSelected(visible) ? "Deselect All" : "Select All") { toggleSelectAll(visible) }
                     }
-                    ToolbarItem(placement: .bottomBar) { selectionActionBar }
                 } else {
                     ToolbarItem(placement: .topBarLeading) { filterMenu }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -116,24 +121,21 @@ struct SurahListView: View {
         }
     }
 
-    private var list: some View {
-        List(filteredUnits) { unit in
+    private func list(_ visible: [TrackUnit], statuses: [String: MemorizationStatus]) -> some View {
+        List(visible) { unit in
+            let st = statuses[unit.key] ?? .notStarted
             if selecting {
                 Button {
                     toggleSelection(unit)
                 } label: {
-                    UnitRow(
-                        unit: unit,
-                        status: status(for: unit),
-                        selected: selectedKeys.contains(unit.key)
-                    )
+                    UnitRow(unit: unit, status: st, selected: selectedKeys.contains(unit.key))
                 }
                 .tint(.primary)
             } else {
                 NavigationLink {
                     SurahDetailView(unit: unit)
                 } label: {
-                    UnitRow(unit: unit, status: status(for: unit))
+                    UnitRow(unit: unit, status: st)
                 }
             }
         }
@@ -163,21 +165,21 @@ struct SurahListView: View {
         selectedKeys = []
     }
 
-    private var allFilteredSelected: Bool {
-        !filteredUnits.isEmpty && filteredUnits.allSatisfy { selectedKeys.contains($0.key) }
+    private func allSelected(_ visible: [TrackUnit]) -> Bool {
+        !visible.isEmpty && visible.allSatisfy { selectedKeys.contains($0.key) }
     }
 
-    private func toggleSelectAll() {
-        if allFilteredSelected {
-            filteredUnits.forEach { selectedKeys.remove($0.key) }
+    private func toggleSelectAll(_ visible: [TrackUnit]) {
+        if allSelected(visible) {
+            visible.forEach { selectedKeys.remove($0.key) }
         } else {
-            filteredUnits.forEach { selectedKeys.insert($0.key) }
+            visible.forEach { selectedKeys.insert($0.key) }
         }
     }
 
     private var selectionActionBar: some View {
         HStack {
-            Text(selectedKeys.isEmpty ? "Select items" : "\(selectedKeys.count) selected")
+            Text(selectedKeys.isEmpty ? "Select surahs to mark" : "\(selectedKeys.count) selected")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -189,6 +191,9 @@ struct SurahListView: View {
             .buttonStyle(.borderedProminent)
             .disabled(selectedKeys.isEmpty)
         }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
     private var filterMenu: some View {
