@@ -11,6 +11,15 @@ struct SurahListView: View {
     @State private var statusFilter: MemorizationStatus? = nil
     @State private var showAddAyahRange = false
 
+    /// Order units from the end of the mushaf (An-Nās → Al-Fātiḥa), matching how
+    /// most people memorize — starting with the short final surahs. On by default.
+    @AppStorage("surahListReversed") private var reversed = true
+
+    /// Multi-select: when active, rows toggle selection instead of navigating,
+    /// so several units can be marked memorized in one go.
+    @State private var selecting = false
+    @State private var selectedKeys: Set<String> = []
+
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var granularity: Granularity { settings.granularity }
 
@@ -40,7 +49,7 @@ struct SurahListView: View {
     }
 
     private var filteredUnits: [TrackUnit] {
-        units.filter { unit in
+        let matched = units.filter { unit in
             let matchesStatus = statusFilter == nil || status(for: unit) == statusFilter
             let matchesSearch = search.isEmpty
                 || unit.title.localizedCaseInsensitiveContains(search)
@@ -48,6 +57,7 @@ struct SurahListView: View {
                 || (unit.arabic?.contains(search) ?? false)
             return matchesStatus && matchesSearch
         }
+        return reversed ? matched.reversed() : matched
     }
 
     var body: some View {
@@ -62,16 +72,29 @@ struct SurahListView: View {
             .navigationTitle(navTitle)
             .searchable(text: $search, prompt: "Search")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { filterMenu }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { MushafPageView() } label: { Image(systemName: "book.pages") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { ReaderIndexView() } label: { Image(systemName: "book") }
-                }
-                if granularity == .ayahRange {
+                if selecting {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") { exitSelection() }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { showAddAyahRange = true } label: { Image(systemName: "plus") }
+                        Button(allFilteredSelected ? "Deselect All" : "Select All") { toggleSelectAll() }
+                    }
+                    ToolbarItem(placement: .bottomBar) { selectionActionBar }
+                } else {
+                    ToolbarItem(placement: .topBarLeading) { filterMenu }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Select") { selecting = true }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink { MushafPageView() } label: { Image(systemName: "book.pages") }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink { ReaderIndexView() } label: { Image(systemName: "book") }
+                    }
+                    if granularity == .ayahRange {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button { showAddAyahRange = true } label: { Image(systemName: "plus") }
+                        }
                     }
                 }
             }
@@ -95,13 +118,77 @@ struct SurahListView: View {
 
     private var list: some View {
         List(filteredUnits) { unit in
-            NavigationLink {
-                SurahDetailView(unit: unit)
-            } label: {
-                UnitRow(unit: unit, status: status(for: unit))
+            if selecting {
+                Button {
+                    toggleSelection(unit)
+                } label: {
+                    UnitRow(
+                        unit: unit,
+                        status: status(for: unit),
+                        selected: selectedKeys.contains(unit.key)
+                    )
+                }
+                .tint(.primary)
+            } else {
+                NavigationLink {
+                    SurahDetailView(unit: unit)
+                } label: {
+                    UnitRow(unit: unit, status: status(for: unit))
+                }
             }
         }
         .listStyle(.plain)
+    }
+
+    private func toggleSelection(_ unit: TrackUnit) {
+        if selectedKeys.contains(unit.key) {
+            selectedKeys.remove(unit.key)
+        } else {
+            selectedKeys.insert(unit.key)
+        }
+    }
+
+    /// Marks every selected unit as memorized in one save, then exits select mode.
+    private func markSelectedMemorized() {
+        for unit in units where selectedKeys.contains(unit.key) {
+            let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
+            ProgressManager.setStatus(.memorized, for: progress)
+        }
+        try? context.save()
+        exitSelection()
+    }
+
+    private func exitSelection() {
+        selecting = false
+        selectedKeys = []
+    }
+
+    private var allFilteredSelected: Bool {
+        !filteredUnits.isEmpty && filteredUnits.allSatisfy { selectedKeys.contains($0.key) }
+    }
+
+    private func toggleSelectAll() {
+        if allFilteredSelected {
+            filteredUnits.forEach { selectedKeys.remove($0.key) }
+        } else {
+            filteredUnits.forEach { selectedKeys.insert($0.key) }
+        }
+    }
+
+    private var selectionActionBar: some View {
+        HStack {
+            Text(selectedKeys.isEmpty ? "Select items" : "\(selectedKeys.count) selected")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                markSelectedMemorized()
+            } label: {
+                Label("Mark memorized", systemImage: "checkmark.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedKeys.isEmpty)
+        }
     }
 
     private var filterMenu: some View {
@@ -111,6 +198,10 @@ struct SurahListView: View {
                 Button { statusFilter = status } label: {
                     Label(status.label, systemImage: statusFilter == status ? "checkmark" : status.systemImage)
                 }
+            }
+            Divider()
+            Toggle(isOn: $reversed) {
+                Label("From the end (An-Nās first)", systemImage: "arrow.up.and.down.text.horizontal")
             }
         } label: {
             Image(systemName: statusFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
@@ -133,9 +224,17 @@ struct SurahListView: View {
 struct UnitRow: View {
     let unit: TrackUnit
     let status: MemorizationStatus
+    /// nil = normal row; non-nil = multi-select mode showing a checkbox.
+    var selected: Bool? = nil
 
     var body: some View {
         HStack(spacing: 12) {
+            if let selected {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                    .font(.title3)
+                    .frame(width: 28)
+            }
             Image(systemName: status.systemImage)
                 .foregroundStyle(status.color)
                 .font(.title3)
