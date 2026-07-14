@@ -91,6 +91,10 @@ enum MemorizationCoverage {
         Set(ayahs.filter(\.isMemorized).map(\.key))
     }
 
+    /// Every ayah key physically printed on a mushaf page, whether memorized or not
+    /// — the full page membership the page scheduler uses to judge completeness.
+    static func pageAyahKeys(_ page: Int) -> [String] { keysByPage[page] ?? [] }
+
     /// Stored manual statuses keyed by unit key, scoped to one granularity.
     static func storedStatus(from progress: [MemorizationProgress], granularity: Granularity) -> [String: MemorizationStatus] {
         Dictionary(

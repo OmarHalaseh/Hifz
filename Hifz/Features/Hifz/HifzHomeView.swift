@@ -16,6 +16,10 @@ struct HifzHomeView: View {
 
     @State private var active: ActiveSession?
 
+    /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa),
+    /// the common back-to-front path. Shares its default with the surah list.
+    @AppStorage("sabaqFromEnd") private var sabaqFromEnd = true
+
     private var state: HifzProgramState { stateList.first ?? HifzProgramState.current(in: context) }
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
 
@@ -23,7 +27,9 @@ struct HifzHomeView: View {
 
     private var memorized: [HifzAyah] { ayahs.filter(\.isMemorized) }
     private var sabqi: [HifzAyah] { HifzProgram.sabqiQueue(ayahs) }
-    private var manzil: [HifzAyah] { HifzProgram.manzilQueue(ayahs, cursor: state.manzilCursor) }
+    /// Long-term revision is now scheduled per page with a hard 30-day cap
+    /// (`HifzPageScheduler`), budgeted in lines — not by a rotation cursor.
+    private var manzil: [HifzAyah] { HifzPageScheduler.manzilDueAyahs(from: ayahs) }
     private var weakLinks: [HifzAyah] { HifzProgram.weakLinks(ayahs) }
 
     private var recentAccuracy: Double {
@@ -159,7 +165,7 @@ struct HifzHomeView: View {
     private func startSabaq() {
         let rows = HifzProgramManager.ensureTodaysSabaq(
             state: state, existing: ayahs, settings: settings,
-            recentAccuracy: recentAccuracy, in: context
+            recentAccuracy: recentAccuracy, fromEnd: sabaqFromEnd, in: context
         )
         try? context.save()
         guard !rows.isEmpty else { return }
@@ -171,9 +177,10 @@ struct HifzHomeView: View {
         case .sabqi:
             HifzProgramManager.clearSabqi(state: state)
         case .manzil:
-            HifzProgramManager.advanceManzilCursor(
-                state: state, memorizedPageCount: Set(memorized.map(\.page)).count
-            )
+            // Reviewing each ayah already advanced its SR state (and thus the page's
+            // 30-day-capped due date), so the page leaves today's queue on its own —
+            // no rotation cursor to advance.
+            break
         case .sabaq, .weakLinks:
             break
         }

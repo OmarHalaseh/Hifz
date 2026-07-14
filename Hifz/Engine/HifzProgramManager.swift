@@ -15,6 +15,7 @@ enum HifzProgramManager {
         existing: [HifzAyah],
         settings: AppSettings,
         recentAccuracy: Double,
+        fromEnd: Bool = false,
         in context: ModelContext,
         now: Date = .now,
         calendar: Calendar = .current
@@ -36,7 +37,7 @@ enum HifzProgramManager {
         let taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
         let atoms = HifzText.orderedAtomTuples
         let picked = HifzProgram.nextSabaqAtoms(
-            orderedAtoms: atoms, memorizedOrInProgressKeys: taken, count: count
+            orderedAtoms: atoms, memorizedOrInProgressKeys: taken, count: count, fromEnd: fromEnd
         )
 
         var rows: [HifzAyah] = []
