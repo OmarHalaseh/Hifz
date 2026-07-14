@@ -122,32 +122,19 @@ struct SurahListView: View {
     }
 
     private func list(_ visible: [TrackUnit], statuses: [String: MemorizationStatus]) -> some View {
-        List(visible) { unit in
+        // Native selection + edit mode gives tap AND press-and-drag multi-select
+        // for free (the same gesture as Mail/Files). Out of edit mode the rows
+        // navigate to the detail view as usual.
+        List(visible, selection: $selectedKeys) { unit in
             let st = statuses[unit.key] ?? .notStarted
-            if selecting {
-                Button {
-                    toggleSelection(unit)
-                } label: {
-                    UnitRow(unit: unit, status: st, selected: selectedKeys.contains(unit.key))
-                }
-                .tint(.primary)
-            } else {
-                NavigationLink {
-                    SurahDetailView(unit: unit)
-                } label: {
-                    UnitRow(unit: unit, status: st)
-                }
+            NavigationLink {
+                SurahDetailView(unit: unit)
+            } label: {
+                UnitRow(unit: unit, status: st)
             }
         }
         .listStyle(.plain)
-    }
-
-    private func toggleSelection(_ unit: TrackUnit) {
-        if selectedKeys.contains(unit.key) {
-            selectedKeys.remove(unit.key)
-        } else {
-            selectedKeys.insert(unit.key)
-        }
+        .environment(\.editMode, .constant(selecting ? .active : .inactive))
     }
 
     /// Marks every selected unit as memorized in one save, then exits select mode.
@@ -229,17 +216,9 @@ struct SurahListView: View {
 struct UnitRow: View {
     let unit: TrackUnit
     let status: MemorizationStatus
-    /// nil = normal row; non-nil = multi-select mode showing a checkbox.
-    var selected: Bool? = nil
 
     var body: some View {
         HStack(spacing: 12) {
-            if let selected {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                    .font(.title3)
-                    .frame(width: 28)
-            }
             Image(systemName: status.systemImage)
                 .foregroundStyle(status.color)
                 .font(.title3)
