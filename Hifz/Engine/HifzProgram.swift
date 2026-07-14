@@ -44,14 +44,24 @@ enum HifzProgram {
         return max(0, 1 - Double(mistakes) / Double(reviews))
     }
 
-    /// The next unmemorized ayahs in mushaf order, for a fresh Sabaq portion.
+    /// The next unmemorized ayahs for a fresh Sabaq portion.
+    ///
+    /// By default they come in mushaf order (Al-Fātiḥa → An-Nās). With
+    /// `fromEnd` the surah sequence runs from the end of the mushaf instead
+    /// (An-Nās → Al-Fātiḥa) — the common back-to-front path that starts on the
+    /// short surahs of Juzʼ ʻAmma and works toward the long ones. Ayahs within a
+    /// surah always stay in ascending order, since a surah is memorized top-to-bottom.
     static func nextSabaqAtoms(
         orderedAtoms: [(surah: Int, ayah: Int, page: Int, juz: Int)],
         memorizedOrInProgressKeys: Set<String>,
-        count: Int
+        count: Int,
+        fromEnd: Bool = false
     ) -> [(surah: Int, ayah: Int, page: Int, juz: Int)] {
+        let ordered = fromEnd
+            ? orderedAtoms.sorted { $0.surah != $1.surah ? $0.surah > $1.surah : $0.ayah < $1.ayah }
+            : orderedAtoms
         var out: [(surah: Int, ayah: Int, page: Int, juz: Int)] = []
-        for atom in orderedAtoms {
+        for atom in ordered {
             if out.count >= count { break }
             let key = HifzAyah.makeKey(surah: atom.surah, ayah: atom.ayah)
             if !memorizedOrInProgressKeys.contains(key) {

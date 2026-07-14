@@ -24,6 +24,9 @@ private struct SettingsForm: View {
 
     @State private var showResetConfirm = false
 
+    /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa).
+    @AppStorage("sabaqFromEnd") private var sabaqFromEnd = true
+
     private var reviseReminderTime: Binding<Date> {
         Binding(
             get: {
@@ -142,10 +145,14 @@ private struct SettingsForm: View {
                     Text("New lesson size")
                 }
                 .onChange(of: settings.sabaqUnit) { _, _ in save() }
+
+                Toggle(isOn: $sabaqFromEnd) {
+                    Label("Start from the end (An-Nās first)", systemImage: "arrow.up.and.down.text.horizontal")
+                }
             } header: {
                 Text("Memorization")
             } footer: {
-                Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.")
+                Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.\n\nStart from the end memorizes the short surahs of Juzʼ ʻAmma first and works back toward Al-Baqara; turn it off to go in mushaf order from Al-Fātiḥa.")
             }
 
             Section {
