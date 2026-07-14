@@ -60,33 +60,42 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(ProgressManager.streak(from: [today, threeDaysAgo], now: now, calendar: cal), 1)
     }
 
-    // MARK: - Scheduler
+    // MARK: - Sabaq ordering
 
-    func testSpacedRepetitionSurfacesOnlyDueMemorizedUnits() {
-        let due = MemorizationProgress(unitKey: "surah-1", granularity: .surah, surahNumber: 1, status: .memorized)
-        due.dueDate = cal.date(byAdding: .day, value: -1, to: now) // overdue
+    private let sabaqAtoms: [(surah: Int, ayah: Int, page: Int, juz: Int)] = [
+        (1, 1, 1, 1), (1, 2, 1, 1),          // Al-Fātiḥa
+        (2, 1, 2, 1), (2, 2, 2, 1),          // Al-Baqara
+        (114, 1, 604, 30), (114, 2, 604, 30) // An-Nās
+    ]
 
-        let notDue = MemorizationProgress(unitKey: "surah-2", granularity: .surah, surahNumber: 2, status: .memorized)
-        notDue.dueDate = cal.date(byAdding: .day, value: 5, to: now) // future
-
-        let learning = MemorizationProgress(unitKey: "surah-3", granularity: .surah, surahNumber: 3, status: .learning)
-
-        let result = RevisionScheduler.dueItems(
-            [due, notDue, learning], mode: .spacedRepetition, granularity: .surah, now: now, calendar: cal
+    func testSabaqDefaultsToMushafOrder() {
+        let picked = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: sabaqAtoms, memorizedOrInProgressKeys: [], count: 2
         )
-        XCTAssertEqual(result.map(\.unitKey), ["surah-1"])
+        XCTAssertEqual(picked.map(\.surah), [1, 1])
+        XCTAssertEqual(picked.map(\.ayah), [1, 2])
     }
 
-    func testSelfRatedOrdersByWeakestFirst() {
-        let strong = MemorizationProgress(unitKey: "surah-1", granularity: .surah, surahNumber: 1, status: .memorized)
-        strong.strength = 0.9
-        let weak = MemorizationProgress(unitKey: "surah-2", granularity: .surah, surahNumber: 2, status: .memorized)
-        weak.strength = 0.2
-
-        let result = RevisionScheduler.dueItems(
-            [strong, weak], mode: .selfRated, granularity: .surah, now: now, calendar: cal
+    func testSabaqFromEndStartsAtLastSurah() {
+        let picked = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: sabaqAtoms, memorizedOrInProgressKeys: [], count: 2, fromEnd: true
         )
-        XCTAssertEqual(result.map(\.unitKey), ["surah-2", "surah-1"])
+        // An-Nās first, and ayahs within the surah stay ascending.
+        XCTAssertEqual(picked.map(\.surah), [114, 114])
+        XCTAssertEqual(picked.map(\.ayah), [1, 2])
+    }
+
+    func testSabaqFromEndSkipsInProgressAndCrossesSurahBoundary() {
+        let taken: Set<String> = [
+            HifzAyah.makeKey(surah: 114, ayah: 1),
+            HifzAyah.makeKey(surah: 114, ayah: 2)
+        ]
+        let picked = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: sabaqAtoms, memorizedOrInProgressKeys: taken, count: 2, fromEnd: true
+        )
+        // An-Nās is done → next surah from the end is Al-Baqara, ayahs ascending.
+        XCTAssertEqual(picked.map(\.surah), [2, 2])
+        XCTAssertEqual(picked.map(\.ayah), [1, 2])
     }
 
     // MARK: - Data integrity

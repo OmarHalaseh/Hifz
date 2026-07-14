@@ -36,8 +36,9 @@ struct DashboardView: View {
     private var fraction: Double {
         totalUnits == 0 ? 0 : Double(memorizedCount) / Double(totalUnits)
     }
-    private var dueItems: [MemorizationProgress] {
-        RevisionScheduler.dueItems(allProgress, mode: settings.revisionMode, granularity: granularity)
+    /// Today's long-term revision load: due Manzil pages under the 30-day cap.
+    private var manzilDuePages: [HifzPageScheduler.PageState] {
+        HifzPageScheduler.todaysManzilPages(from: hifzAyahs)
     }
     private var streak: Int { ProgressManager.streak(from: allLogs) }
     private var reviewsToday: Int {
@@ -87,20 +88,21 @@ struct DashboardView: View {
         }
     }
 
+    /// Manzil call-to-action: today's due long-term pages (30-day cap). Tapping
+    /// jumps to the Ḥifẓ tab, where the Manzil session lives.
     @ViewBuilder
     private var reviseCard: some View {
-        NavigationLink {
-            RevisionSessionView(mode: settings.revisionMode, granularity: granularity)
-        } label: {
+        let due = manzilDuePages.count
+        Button(action: onOpenHifz) {
             HStack(spacing: 14) {
-                Image(systemName: dueItems.isEmpty ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                Image(systemName: due == 0 ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
                     .font(.title)
                     .foregroundStyle(.white)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(dueItems.isEmpty ? "All caught up" : "\(dueItems.count) to revise")
+                    Text(due == 0 ? "Manzil caught up" : "Manzil · \(due) page\(due == 1 ? "" : "s")")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    Text(dueItems.isEmpty ? "Nothing due right now" : "Tap to start a revision session")
+                    Text(due == 0 ? "No long-term pages due today" : "Today's long-term revision — tap to start")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.85))
                 }
@@ -109,13 +111,13 @@ struct DashboardView: View {
             }
             .padding()
             .background(
-                LinearGradient(colors: dueItems.isEmpty ? [.green, .teal] : [.accentColor, .indigo],
+                LinearGradient(colors: due == 0 ? [.green, .teal] : [.accentColor, .indigo],
                                startPoint: .topLeading, endPoint: .bottomTrailing),
                 in: RoundedRectangle(cornerRadius: 18)
             )
         }
         .buttonStyle(.plain)
-        .disabled(dueItems.isEmpty)
+        .disabled(due == 0)
     }
 
     /// Today's ḥifẓ call-to-action: Sabqi comes first (it blocks new Sabaq), else
