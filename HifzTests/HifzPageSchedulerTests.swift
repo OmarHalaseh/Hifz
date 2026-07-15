@@ -125,6 +125,20 @@ final class HifzPageSchedulerTests: XCTestCase {
         XCTAssertEqual(queue.map(\.page), [4, 5, 3], "Most overdue pages come first.")
     }
 
+    func testManzilQueueFromEndBreaksDueDateTiesTowardEndOfMushaf() {
+        let now = Date()
+        // Three equally-overdue pages: urgency is identical, so only the tie-break differs.
+        let p3 = manzilPage(3, reviewedDaysAgo: 40, srInterval: 5, now: now)
+        let p20 = manzilPage(20, reviewedDaysAgo: 40, srInterval: 5, now: now)
+        let p100 = manzilPage(100, reviewedDaysAgo: 40, srInterval: 5, now: now)
+
+        let front = HifzPageScheduler.manzilQueue([p3, p20, p100], lineBudget: 100, now: now)
+        XCTAssertEqual(front.map(\.page), [3, 20, 100], "Ties favor the front of the mushaf by default.")
+
+        let end = HifzPageScheduler.manzilQueue([p3, p20, p100], lineBudget: 100, now: now, fromEnd: true)
+        XCTAssertEqual(end.map(\.page), [100, 20, 3], "From the end, ties favor later pages first.")
+    }
+
     func testSabqiPagesAreExcludedFromManzil() {
         let now = Date()
         let manzil = manzilPage(8, reviewedDaysAgo: 40, srInterval: 10, now: now)
