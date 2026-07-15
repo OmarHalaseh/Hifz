@@ -9,6 +9,7 @@ struct HifzHomeView: View {
     @Environment(\.modelContext) private var context
 
     @Query private var ayahs: [HifzAyah]
+    @Query private var progress: [MemorizationProgress]
     @Query private var reviewLogs: [ReviewLog]
     @Query private var mistakeLogs: [MistakeLog]
     @Query private var stateList: [HifzProgramState]
@@ -164,7 +165,9 @@ struct HifzHomeView: View {
 
     private func startSabaq() {
         let rows = HifzProgramManager.ensureTodaysSabaq(
-            state: state, existing: ayahs, settings: settings,
+            state: state, existing: ayahs,
+            manuallyMemorizedKeys: MemorizationCoverage.manuallyMemorizedAyahKeys(from: progress),
+            settings: settings,
             recentAccuracy: recentAccuracy, fromEnd: sabaqFromEnd, in: context
         )
         try? context.save()
