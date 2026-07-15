@@ -26,10 +26,10 @@ struct HifzHomeView: View {
     // MARK: - Derived queues (pure engine)
 
     private var memorized: [HifzAyah] { ayahs.filter(\.isMemorized) }
-    private var sabqi: [HifzAyah] { HifzProgram.sabqiQueue(ayahs) }
+    private var sabqi: [HifzAyah] { HifzProgram.sabqiQueue(ayahs, fromEnd: sabaqFromEnd) }
     /// Long-term revision is now scheduled per page with a hard 30-day cap
     /// (`HifzPageScheduler`), budgeted in lines — not by a rotation cursor.
-    private var manzil: [HifzAyah] { HifzPageScheduler.manzilDueAyahs(from: ayahs) }
+    private var manzil: [HifzAyah] { HifzPageScheduler.manzilDueAyahs(from: ayahs, fromEnd: sabaqFromEnd) }
     private var weakLinks: [HifzAyah] { HifzProgram.weakLinks(ayahs) }
 
     private var recentAccuracy: Double {

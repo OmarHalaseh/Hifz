@@ -73,6 +73,7 @@ enum HifzPageScheduler {
         _ pages: [PageState],
         lineBudget: Int,
         now: Date = .now,
+        fromEnd: Bool = false,
         calendar: Calendar = .current
     ) -> [PageState] {
         let today = calendar.startOfDay(for: now)
@@ -80,7 +81,9 @@ enum HifzPageScheduler {
             .filter { $0.tier == .manzil && $0.nextDue(calendar: calendar) <= today }
             .sorted { lhs, rhs in
                 let l = lhs.nextDue(calendar: calendar), r = rhs.nextDue(calendar: calendar)
-                return l == r ? lhs.page < rhs.page : l < r
+                // Most overdue first; ties broken toward the end of the mushaf when
+                // reviewing from the end, otherwise front-first.
+                return l == r ? (fromEnd ? lhs.page > rhs.page : lhs.page < rhs.page) : l < r
             }
 
         var out: [PageState] = []
@@ -118,21 +121,26 @@ enum HifzPageScheduler {
     /// Today's due Manzil pages for a set of `HifzAyah` rows, using the real mushaf
     /// line layout and page membership.
     static func todaysManzilPages(
-        from ayahs: [HifzAyah], now: Date = .now, calendar: Calendar = .current
+        from ayahs: [HifzAyah], now: Date = .now, fromEnd: Bool = false,
+        calendar: Calendar = .current
     ) -> [PageState] {
         let pages = pageStates(from: ayahs, now: now, calendar: calendar)
-        return manzilQueue(pages, lineBudget: lineBudget(manzilPages: pages), now: now, calendar: calendar)
+        return manzilQueue(pages, lineBudget: lineBudget(manzilPages: pages),
+                           now: now, fromEnd: fromEnd, calendar: calendar)
     }
 
     /// The memorized `HifzAyah` rows on today's due Manzil pages, in mushaf order —
-    /// the ready-to-drill set for a Manzil session.
+    /// the ready-to-drill set for a Manzil session. With `fromEnd`, page selection
+    /// and recitation order both run from the end of the mushaf (An-Nās first).
     static func manzilDueAyahs(
-        from ayahs: [HifzAyah], now: Date = .now, calendar: Calendar = .current
+        from ayahs: [HifzAyah], now: Date = .now, fromEnd: Bool = false,
+        calendar: Calendar = .current
     ) -> [HifzAyah] {
-        let duePages = Set(todaysManzilPages(from: ayahs, now: now, calendar: calendar).map(\.page))
+        let duePages = Set(todaysManzilPages(from: ayahs, now: now, fromEnd: fromEnd,
+                                             calendar: calendar).map(\.page))
         return ayahs
             .filter { $0.isMemorized && duePages.contains($0.page) }
-            .sorted(by: HifzProgram.mushafOrder)
+            .sorted(by: HifzProgram.mushafOrder(fromEnd: fromEnd))
     }
 
     /// Aggregates `HifzAyah` rows into one `PageState` per page, using the real
