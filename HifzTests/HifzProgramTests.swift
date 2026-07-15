@@ -99,6 +99,18 @@ final class HifzProgramTests: XCTestCase {
         XCTAssertEqual(queue.map(\.ayah), [1, 2])  // sorted mushaf order, old + unmemorized dropped
     }
 
+    func testSabqiQueueFromEndReversesSurahOrderButKeepsAyahsAscending() {
+        let now = Date()
+        // Two surahs memorized recently; expect from-end to list the later surah first.
+        let s2a1 = ayah(surah: 2, ayah: 1, page: 2, daysAgo: 1, now: now)
+        let s2a2 = ayah(surah: 2, ayah: 2, page: 2, daysAgo: 1, now: now)
+        let s114a1 = ayah(surah: 114, ayah: 1, page: 604, daysAgo: 1, now: now)
+        let s114a2 = ayah(surah: 114, ayah: 2, page: 604, daysAgo: 1, now: now)
+        let queue = HifzProgram.sabqiQueue([s2a1, s114a2, s2a2, s114a1], now: now, fromEnd: true)
+        // Surahs descending (114 before 2); ayahs within a surah stay ascending.
+        XCTAssertEqual(queue.map { [$0.surah, $0.ayah] }, [[114, 1], [114, 2], [2, 1], [2, 2]])
+    }
+
     // MARK: - Manzil rotation
 
     func testManzilExcludesRecentMaterial() {
