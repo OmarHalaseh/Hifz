@@ -91,6 +91,28 @@ enum MemorizationCoverage {
         Set(ayahs.filter(\.isMemorized).map(\.key))
     }
 
+    /// Ayah keys covered by units the user manually marked memorized (surah/page/
+    /// juz/… rows in `MemorizationProgress`, e.g. from the surah-list bulk mark).
+    /// The Sabaq scheduler folds these into its "already done" set so it never
+    /// re-offers memorized material as a new lesson.
+    static func manuallyMemorizedAyahKeys(from progress: [MemorizationProgress]) -> Set<String> {
+        var out: Set<String> = []
+        for p in progress where p.status == .memorized {
+            out.formUnion(ayahKeys(in: trackUnit(from: p)))
+        }
+        return out
+    }
+
+    /// A minimal `TrackUnit` carrying just the identity fields `ayahKeys(in:)`
+    /// needs — enough to expand a stored progress row into its ayahs.
+    private static func trackUnit(from p: MemorizationProgress) -> TrackUnit {
+        TrackUnit(
+            key: p.unitKey, granularity: p.granularity, title: "", subtitle: "", arabic: nil,
+            surahNumber: p.surahNumber, pageNumber: p.pageNumber, juzNumber: p.juzNumber,
+            ayahFrom: p.ayahFrom, ayahTo: p.ayahTo, lineFrom: p.lineFrom, lineTo: p.lineTo
+        )
+    }
+
     /// Every ayah key physically printed on a mushaf page, whether memorized or not
     /// — the full page membership the page scheduler uses to judge completeness.
     static func pageAyahKeys(_ page: Int) -> [String] { keysByPage[page] ?? [] }

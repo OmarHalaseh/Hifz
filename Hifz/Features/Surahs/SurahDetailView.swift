@@ -6,6 +6,7 @@ struct SurahDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Query private var allProgress: [MemorizationProgress]
+    @Query private var hifzAyahs: [HifzAyah]
     @Query private var settingsList: [AppSettings]
 
     @State private var status: MemorizationStatus = .notStarted
@@ -97,6 +98,10 @@ struct SurahDetailView: View {
     private func applyStatus(_ newValue: MemorizationStatus) {
         let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
         ProgressManager.setStatus(newValue, for: progress)
+        // Seed per-ayah rows so a memorized unit enters the Manzil revision rotation.
+        if newValue == .memorized {
+            HifzProgramManager.seedMemorized(units: [unit], existing: hifzAyahs, in: context)
+        }
         try? context.save()
     }
 
