@@ -139,10 +139,14 @@ struct SurahListView: View {
 
     /// Marks every selected unit as memorized in one save, then exits select mode.
     private func markSelectedMemorized() {
-        for unit in units where selectedKeys.contains(unit.key) {
+        let marked = units.filter { selectedKeys.contains($0.key) }
+        for unit in marked {
             let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
             ProgressManager.setStatus(.memorized, for: progress)
         }
+        // Seed per-ayah rows so the marked ḥifẓ enters the Manzil revision rotation,
+        // not just the coarse progress ledger.
+        HifzProgramManager.seedMemorized(units: marked, existing: hifzAyahs, in: context)
         try? context.save()
         exitSelection()
     }

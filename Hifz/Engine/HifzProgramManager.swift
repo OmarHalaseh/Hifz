@@ -13,6 +13,7 @@ enum HifzProgramManager {
     static func ensureTodaysSabaq(
         state: HifzProgramState,
         existing: [HifzAyah],
+        manuallyMemorizedKeys: Set<String> = [],
         settings: AppSettings,
         recentAccuracy: Double,
         fromEnd: Bool = false,
@@ -34,7 +35,12 @@ enum HifzProgramManager {
             baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
         )
         let count = HifzProgram.ayahCount(forLines: lines)
-        let taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
+        // "Already done" for Sabaq = memorized/in-progress program rows *plus* any
+        // ayahs the user marked memorized elsewhere (surah-list bulk mark, page
+        // tracking). Without the manual keys, list-marked surahs have no HifzAyah
+        // rows and get re-offered as brand-new lessons.
+        var taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
+        taken.formUnion(manuallyMemorizedKeys)
         let atoms = HifzText.orderedAtomTuples
         let picked = HifzProgram.nextSabaqAtoms(
             orderedAtoms: atoms, memorizedOrInProgressKeys: taken, count: count, fromEnd: fromEnd
@@ -56,6 +62,51 @@ enum HifzProgramManager {
         state.sabaqKeys = rows.map(\.key)
         state.sabaqConfirmedKeys = []
         return rows
+    }
+
+    // MARK: - Seeding pre-existing ḥifẓ
+
+    /// How many days back a bulk-marked ayah's `memorizedAt` is dated: one day past
+    /// the Sabqi window, so established ḥifẓ lands straight in the Manzil long-term
+    /// rotation instead of this week's daily-recitation (Sabqi) set.
+    static let seedBackdateDays = HifzPageScheduler.sabqiDays + 1
+
+    /// Creates memorized `HifzAyah` rows for every ayah in `units` — the bridge for
+    /// marking pre-existing ḥifẓ memorized outside the guided Sabaq flow (e.g. the
+    /// surah-list bulk mark). Without these rows the scheduler can't see the surah, so
+    /// it neither revises it (Manzil) nor counts it drilled.
+    ///
+    /// Rows are dated just outside the Sabqi window so they enter Manzil directly, and
+    /// are due immediately — the 30-day line budget spreads them across the cycle.
+    /// Idempotent and non-destructive: any ayah that already has a `HifzAyah` row
+    /// (in Sabaq, or genuinely memorized with real review history) is left untouched.
+    @discardableResult
+    static func seedMemorized(
+        units: [TrackUnit],
+        existing: [HifzAyah],
+        in context: ModelContext,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [HifzAyah] {
+        let wanted = Set(units.flatMap { MemorizationCoverage.ayahKeys(in: $0) })
+        guard !wanted.isEmpty else { return [] }
+        let established = calendar.date(
+            byAdding: .day, value: -seedBackdateDays, to: calendar.startOfDay(for: now)
+        ) ?? now
+
+        var have = Set(existing.map(\.key))
+        var created: [HifzAyah] = []
+        for atom in HifzText.orderedAtomTuples {
+            let key = HifzAyah.makeKey(surah: atom.surah, ayah: atom.ayah)
+            guard wanted.contains(key), !have.contains(key) else { continue }
+            have.insert(key)
+            let row = HifzAyah(surah: atom.surah, ayah: atom.ayah, page: atom.page,
+                               juz: atom.juz, phase: .manzil)
+            row.memorizedAt = established
+            context.insert(row)
+            created.append(row)
+        }
+        return created
     }
 
     /// The "quality over speed" gate: mark an ayah memorized only on a flawless
