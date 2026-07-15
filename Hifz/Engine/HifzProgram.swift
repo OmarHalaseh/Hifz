@@ -73,18 +73,22 @@ enum HifzProgram {
 
     // MARK: - Sabqi (recent revision, blocking)
 
-    /// Ayahs memorized within the last `days` days, in mushaf order.
+    /// Ayahs memorized within the last `days` days. Recited in mushaf order by
+    /// default; with `fromEnd` the surah sequence runs from the end of the mushaf
+    /// (An-Nās → Al-Fātiḥa) so review follows the same back-to-front path as a
+    /// from-the-end Sabaq.
     static func sabqiQueue(
         _ ayahs: [HifzAyah],
         now: Date = .now,
         days: Int = 7,
+        fromEnd: Bool = false,
         calendar: Calendar = .current
     ) -> [HifzAyah] {
         let start = calendar.startOfDay(for: now)
         guard let cutoff = calendar.date(byAdding: .day, value: -days, to: start) else { return [] }
         return ayahs
             .filter { ($0.memorizedAt ?? .distantPast) >= cutoff }
-            .sorted(by: mushafOrder)
+            .sorted(by: mushafOrder(fromEnd: fromEnd))
     }
 
     /// New Sabaq is only allowed once today's Sabqi is empty or has been cleared.
@@ -166,5 +170,13 @@ enum HifzProgram {
 
     static func mushafOrder(_ a: HifzAyah, _ b: HifzAyah) -> Bool {
         (a.surah, a.ayah) < (b.surah, b.ayah)
+    }
+
+    /// A mushaf-order comparator, optionally reversed to run from the end of the
+    /// mushaf (An-Nās → Al-Fātiḥa). Ayahs within a surah always stay ascending —
+    /// a surah is memorized and recited top-to-bottom regardless of direction.
+    static func mushafOrder(fromEnd: Bool) -> (HifzAyah, HifzAyah) -> Bool {
+        guard fromEnd else { return mushafOrder }
+        return { $0.surah != $1.surah ? $0.surah > $1.surah : $0.ayah < $1.ayah }
     }
 }
