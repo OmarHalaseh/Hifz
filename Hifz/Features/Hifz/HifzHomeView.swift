@@ -16,10 +16,15 @@ struct HifzHomeView: View {
     @Query private var settingsList: [AppSettings]
 
     @State private var active: ActiveSession?
+    @State private var showDailyComplete = false
 
     /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa),
     /// the common back-to-front path. Shares its default with the surah list.
     @AppStorage("sabaqFromEnd") private var sabaqFromEnd = true
+
+    /// Start-of-day (as a `timeIntervalSince1970`) the "good for today" popup
+    /// was last shown, so it celebrates at most once per day.
+    @AppStorage("dailyDoseCelebratedOn") private var celebratedOn: Double = 0
 
     private var state: HifzProgramState { stateList.first ?? HifzProgramState.current(in: context) }
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
@@ -53,6 +58,25 @@ struct HifzHomeView: View {
         return HifzProgram.ayahCount(forLines: lines)
     }
 
+    /// Today's Sabaq portion has been assigned and every ayah in it confirmed.
+    private var sabaqDoneToday: Bool {
+        guard let assigned = state.sabaqAssignedOn,
+              Calendar.current.isDate(assigned, inSameDayAs: .now),
+              !state.sabaqKeys.isEmpty else { return false }
+        return Set(state.sabaqKeys).isSubset(of: Set(state.sabaqConfirmedKeys))
+    }
+
+    /// Everything due today is cleared: recent work recited, a new lesson learned,
+    /// and the long-term cycle and weak links are empty. Requires that the user
+    /// has actually memorized something (otherwise there's no "dose" yet).
+    private var dailyDoseComplete: Bool {
+        !memorized.isEmpty
+            && sabqi.isEmpty
+            && manzil.isEmpty
+            && weakLinks.isEmpty
+            && sabaqDoneToday
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -71,6 +95,17 @@ struct HifzHomeView: View {
                     onFinish: { finish(session.kind) }
                 )
             }
+        }
+        .onChange(of: dailyDoseComplete) { _, complete in
+            if complete { celebrateIfNeeded() }
+        }
+        .onAppear { celebrateIfNeeded() }
+        .sheet(isPresented: $showDailyComplete) {
+            DailyCompleteView(
+                memorizedCount: memorized.count,
+                pageCount: Set(memorized.map(\.page)).count
+            )
+            .presentationDetents([.medium])
         }
     }
 
@@ -175,6 +210,16 @@ struct HifzHomeView: View {
         active = ActiveSession(kind: .sabaq, ayahs: rows)
     }
 
+    /// Shows the "good for today" popup the first time the daily dose is
+    /// completed each day, then remembers the day so it won't repeat.
+    private func celebrateIfNeeded() {
+        guard dailyDoseComplete else { return }
+        let today = Calendar.current.startOfDay(for: .now).timeIntervalSince1970
+        guard celebratedOn != today else { return }
+        celebratedOn = today
+        showDailyComplete = true
+    }
+
     private func finish(_ kind: HifzSessionView.Kind) {
         switch kind {
         case .sabqi:
@@ -234,6 +279,56 @@ private struct CardLabel: View {
                 .foregroundStyle(tint)
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Celebratory "you're good for today" popup shown once the whole daily
+/// dose — Sabqi, Sabaq, Manzil and weak links — is cleared.
+private struct DailyCompleteView: View {
+    let memorizedCount: Int
+    let pageCount: Int
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.green)
+                .symbolEffect(.bounce, value: memorizedCount)
+            VStack(spacing: 6) {
+                Text("You're good for today")
+                    .font(.title2.weight(.bold))
+                    .multilineTextAlignment(.center)
+                Text("Sabqi, Sabaq and Manzil are all done. Come back tomorrow to keep the streak going.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 28) {
+                stat("\(memorizedCount)", "Ayahs")
+                stat("\(pageCount)", "Pages")
+            }
+            .padding(.top, 4)
+            Spacer()
+            Button {
+                dismiss()
+            } label: {
+                Text("Alḥamdulillāh")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding(24)
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.title3.weight(.semibold))
+            Text(label).font(.caption2).foregroundStyle(.secondary)
         }
     }
 }
