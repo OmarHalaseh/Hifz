@@ -28,6 +28,9 @@ struct HifzSessionView: View {
     @State private var reps = 0
     @State private var hidden: Bool     // "recite from memory" — blur the text
 
+    /// Recommended number of times to repeat each new ayah while drilling Sabaq.
+    private let repTarget = 7...10
+
     init(kind: Kind, ayahs: [HifzAyah], state: HifzProgramState, onFinish: @escaping () -> Void = {}) {
         self.kind = kind
         self.ayahs = ayahs
@@ -232,11 +235,15 @@ struct HifzSessionView: View {
     private var sabaqControls: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("Repeated \(reps)×").font(.subheadline).foregroundStyle(.secondary)
+                Text(reps >= repTarget.lowerBound
+                     ? "Repeated \(reps)× ✓"
+                     : "Repeated \(reps)× — aim for \(repTarget.lowerBound)–\(repTarget.upperBound)")
+                    .font(.subheadline)
+                    .foregroundStyle(reps >= repTarget.lowerBound ? Color.green : .secondary)
                 Spacer()
                 Button {
                     reps += 1
-                } label: { Label("Repeat aloud", systemImage: "repeat") }
+                } label: { Label("Repeat", systemImage: "repeat") }
                     .buttonStyle(.bordered)
                     .disabled(reps >= 15)
             }
@@ -264,9 +271,9 @@ struct HifzSessionView: View {
             return "Now connect these ayahs together from the start. Hide the text and recite them as one before moving on."
         }
         if step.range.lowerBound == 0 {
-            return "Repeat this ayah until it flows. Hide it and recite from memory before continuing."
+            return "Repeat this ayah \(repTarget.lowerBound)–\(repTarget.upperBound) times until it flows. Hide it and recite from memory before continuing."
         }
-        return "Learn this new ayah on its own — repeat it a few times, then hide and recite it."
+        return "Learn this new ayah on its own — repeat it \(repTarget.lowerBound)–\(repTarget.upperBound) times, then hide and recite it."
     }
 
     private var revisionControls: some View {
