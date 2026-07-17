@@ -27,6 +27,9 @@ private struct SettingsForm: View {
     /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa).
     @AppStorage("sabaqFromEnd") private var sabaqFromEnd = true
 
+    /// The reciter used for per-ayah qari playback.
+    @AppStorage(Qari.storageKey) private var qari: Qari = .alafasy
+
     private var reviseReminderTime: Binding<Date> {
         Binding(
             get: {
@@ -153,6 +156,20 @@ private struct SettingsForm: View {
                 Text("Memorization")
             } footer: {
                 Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.\n\nStart from the end memorizes the short surahs of Juzʼ ʻAmma first and works back toward Al-Baqara; turn it off to go in mushaf order from Al-Fātiḥa.")
+            }
+
+            Section {
+                Picker(selection: $qari) {
+                    ForEach(Qari.allCases) { q in
+                        Text(q.displayName).tag(q)
+                    }
+                } label: {
+                    Text("Reciter")
+                }
+            } header: {
+                Text("Recitation")
+            } footer: {
+                Text("The qari you'll hear when you tap “Listen to qari” on an ayah. Audio streams from everyayah.com.")
             }
 
             Section {
