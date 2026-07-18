@@ -73,10 +73,16 @@ enum HifzProgram {
 
     // MARK: - Sabqi (recent revision, blocking)
 
-    /// Ayahs memorized within the last `days` days. Recited in mushaf order by
-    /// default; with `fromEnd` the surah sequence runs from the end of the mushaf
-    /// (An-Nās → Al-Fātiḥa) so review follows the same back-to-front path as a
-    /// from-the-end Sabaq.
+    /// Ayahs memorized within the last `days` days **that are due today**. Recited
+    /// in mushaf order by default; with `fromEnd` the surah sequence runs from the
+    /// end of the mushaf (An-Nās → Al-Fātiḥa) so review follows the same
+    /// back-to-front path as a from-the-end Sabaq.
+    ///
+    /// An ayah reviewed today (e.g. the lesson just confirmed, or a Sabqi recital
+    /// completed) has its `dueDate` pushed into the future and so drops out of
+    /// today's queue, reappearing only on its next scheduled day — it is not
+    /// re-listed as fällig the same day. A `nil` `dueDate` (legacy or seeded rows
+    /// that were never scheduled) is treated as due.
     static func sabqiQueue(
         _ ayahs: [HifzAyah],
         now: Date = .now,
@@ -88,7 +94,15 @@ enum HifzProgram {
         guard let cutoff = calendar.date(byAdding: .day, value: -days, to: start) else { return [] }
         return ayahs
             .filter { ($0.memorizedAt ?? .distantPast) >= cutoff }
+            .filter { isDue($0.dueDate, on: start, calendar: calendar) }
             .sorted(by: mushafOrder(fromEnd: fromEnd))
+    }
+
+    /// Whether a scheduled item is due on `day`: never-scheduled (`nil`) counts as
+    /// due; otherwise its due date must have arrived (start-of-day ≤ `day`).
+    static func isDue(_ dueDate: Date?, on day: Date, calendar: Calendar = .current) -> Bool {
+        guard let due = dueDate else { return true }
+        return calendar.startOfDay(for: due) <= day
     }
 
     /// New Sabaq is only allowed once today's Sabqi is empty or has been cleared.

@@ -110,7 +110,10 @@ enum HifzProgramManager {
     }
 
     /// The "quality over speed" gate: mark an ayah memorized only on a flawless
-    /// recall. Sets `memorizedAt` once, graduates it to Sabqi, and seeds SM-2.
+    /// recall. Sets `memorizedAt` once, graduates it to Sabqi, and — because a
+    /// flawless recall *is* the first successful review — advances SM-2 one step
+    /// so the ayah is stamped reviewed-today and its next Sabqi review is
+    /// scheduled in the future (tomorrow), not re-listed as due the same day.
     static func confirmFlawless(
         _ ayah: HifzAyah,
         state: HifzProgramState,
@@ -119,11 +122,13 @@ enum HifzProgramManager {
         guard !ayah.isMemorized else { return }
         ayah.memorizedAt = now
         ayah.phase = .sabqi
-        let sr = SpacedRepetition.initialState(now: now)
-        ayah.easeFactor = sr.easeFactor
-        ayah.intervalDays = sr.intervalDays
-        ayah.repetitions = sr.repetitions
-        ayah.dueDate = sr.dueDate
+        let first = SpacedRepetition.schedule(SpacedRepetition.initialState(now: now),
+                                              rating: .good, now: now)
+        ayah.easeFactor = first.easeFactor
+        ayah.intervalDays = first.intervalDays      // 1
+        ayah.repetitions = first.repetitions        // 1
+        ayah.dueDate = first.dueDate                // tomorrow
+        ayah.lastReviewedAt = first.lastReviewedAt  // now — completed today
         if !state.sabaqConfirmedKeys.contains(ayah.key) {
             state.sabaqConfirmedKeys.append(ayah.key)
         }
