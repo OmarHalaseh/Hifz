@@ -111,6 +111,41 @@ final class HifzProgramTests: XCTestCase {
         XCTAssertEqual(queue.map { [$0.surah, $0.ayah] }, [[114, 1], [114, 2], [2, 1], [2, 2]])
     }
 
+    func testSabqiQueueExcludesAyahsAlreadyDueInFuture() {
+        let now = Date()
+        let start = cal.startOfDay(for: now)
+        // Memorized recently but reviewed today → next due tomorrow.
+        let doneToday = ayah(ayah: 1, page: 1, daysAgo: 1, now: now)
+        doneToday.dueDate = cal.date(byAdding: .day, value: 1, to: start)
+        // Memorized recently, due today.
+        let dueNow = ayah(ayah: 2, page: 1, daysAgo: 1, now: now)
+        dueNow.dueDate = start
+        let queue = HifzProgram.sabqiQueue([doneToday, dueNow], now: now)
+        XCTAssertEqual(queue.map(\.ayah), [2])   // the future-due one is filtered out
+    }
+
+    /// The reported bug: a Sabaq lesson confirmed today must not reappear as a
+    /// due Sabqi the same day; it stamps a review today and schedules the next
+    /// one for tomorrow, so it only returns on its scheduled day.
+    func testConfirmedSabaqIsNotDueSabqiSameDayButReturnsNextDay() {
+        let now = Date()
+        let state = HifzProgramState()
+        let a = HifzAyah(surah: 114, ayah: 1, page: 604, juz: 30)
+        HifzProgramManager.confirmFlawless(a, state: state, now: now)
+
+        XCTAssertTrue(a.isMemorized)
+        XCTAssertEqual(a.phase, .sabqi)
+        XCTAssertNotNil(a.lastReviewedAt)                 // reviewed today
+        XCTAssertEqual(a.dueDate, cal.date(byAdding: .day, value: 1,
+                                           to: cal.startOfDay(for: now)))  // due tomorrow
+
+        // Not fällig today…
+        XCTAssertTrue(HifzProgram.sabqiQueue([a], now: now, calendar: cal).isEmpty)
+        // …but back in the Sabqi queue tomorrow.
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: now)!
+        XCTAssertEqual(HifzProgram.sabqiQueue([a], now: tomorrow, calendar: cal).map(\.ayah), [1])
+    }
+
     // MARK: - Manzil rotation
 
     func testManzilExcludesRecentMaterial() {
