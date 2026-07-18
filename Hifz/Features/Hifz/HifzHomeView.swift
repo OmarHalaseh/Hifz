@@ -136,7 +136,9 @@ struct HifzHomeView: View {
 
     private var sabaqSection: some View {
         Section {
-            if sabaqUnlocked {
+            if sabaqDoneToday {
+                sabaqDone
+            } else if sabaqUnlocked {
                 PhaseCard(phase: .sabaq, count: sabaqPortionCount,
                           note: "Learn a new portion. Confirm only on a flawless recall.") {
                     startSabaq()
@@ -173,6 +175,20 @@ struct HifzHomeView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var sabaqDone: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2).foregroundStyle(.green)
+                .frame(width: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Today's lesson done").font(.body.weight(.medium))
+                Text("New Sabaq confirmed. It returns for Sabqi on its next due day.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private var lockedSabaq: some View {
