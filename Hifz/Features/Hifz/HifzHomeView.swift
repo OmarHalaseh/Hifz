@@ -17,6 +17,7 @@ struct HifzHomeView: View {
 
     @State private var active: ActiveSession?
     @State private var showDailyComplete = false
+    @State private var previewCount = 0
 
     /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa),
     /// the common back-to-front path. Shares its default with the surah list.
@@ -52,10 +53,23 @@ struct HifzHomeView: View {
            Calendar.current.isDate(assigned, inSameDayAs: .now), !state.sabaqKeys.isEmpty {
             return state.sabaqKeys.count
         }
-        let lines = HifzProgram.portionLines(
-            baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
-        )
-        return HifzProgram.ayahCount(forLines: lines)
+        return previewCount
+    }
+
+    /// Cheap signature of everything the preview depends on, so the portion is only
+    /// re-measured when it can actually have changed — sizing it walks all 6236
+    /// atoms and is far too costly to redo on every render.
+    private var previewSignature: String {
+        "\(ayahs.count)|\(progress.count)|\(settings.sabaqUnit.rawValue)|\(sabaqFromEnd)"
+            + "|\(Int(recentAccuracy * 100))"
+    }
+
+    private func refreshPreviewCount() {
+        previewCount = HifzProgramManager.sabaqPortionAtoms(
+            existing: ayahs,
+            manuallyMemorizedKeys: MemorizationCoverage.manuallyMemorizedAyahKeys(from: progress),
+            settings: settings, recentAccuracy: recentAccuracy, fromEnd: sabaqFromEnd
+        ).count
     }
 
     /// Today's Sabaq portion has been assigned and every ayah in it confirmed.
@@ -100,6 +114,7 @@ struct HifzHomeView: View {
             if complete { celebrateIfNeeded() }
         }
         .onAppear { celebrateIfNeeded() }
+        .task(id: previewSignature) { refreshPreviewCount() }
         .sheet(isPresented: $showDailyComplete) {
             DailyCompleteView(
                 memorizedCount: memorized.count,
