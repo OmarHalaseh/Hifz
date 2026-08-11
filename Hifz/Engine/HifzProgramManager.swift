@@ -29,21 +29,9 @@ enum HifzProgramManager {
             return state.sabaqKeys.compactMap { key in existing.first { $0.key == key } }
         }
 
-        // Size the portion around the user's chosen daily-lesson unit, then pick
-        // the next unmemorized ayahs.
-        let lines = HifzProgram.portionLines(
-            baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
-        )
-        let count = HifzProgram.ayahCount(forLines: lines)
-        // "Already done" for Sabaq = memorized/in-progress program rows *plus* any
-        // ayahs the user marked memorized elsewhere (surah-list bulk mark, page
-        // tracking). Without the manual keys, list-marked surahs have no HifzAyah
-        // rows and get re-offered as brand-new lessons.
-        var taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
-        taken.formUnion(manuallyMemorizedKeys)
-        let atoms = HifzText.orderedAtomTuples
-        let picked = HifzProgram.nextSabaqAtoms(
-            orderedAtoms: atoms, memorizedOrInProgressKeys: taken, count: count, fromEnd: fromEnd
+        let picked = sabaqPortionAtoms(
+            existing: existing, manuallyMemorizedKeys: manuallyMemorizedKeys,
+            settings: settings, recentAccuracy: recentAccuracy, fromEnd: fromEnd
         )
 
         var rows: [HifzAyah] = []
@@ -62,6 +50,33 @@ enum HifzProgramManager {
         state.sabaqKeys = rows.map(\.key)
         state.sabaqConfirmedKeys = []
         return rows
+    }
+
+    /// Today's Sabaq portion as plain atoms — creates no rows and writes no state.
+    /// Shared by `ensureTodaysSabaq` and the home screen's preview, so the size
+    /// shown before you tap matches the lesson you actually get.
+    static func sabaqPortionAtoms(
+        existing: [HifzAyah],
+        manuallyMemorizedKeys: Set<String> = [],
+        settings: AppSettings,
+        recentAccuracy: Double,
+        fromEnd: Bool = false
+    ) -> [(surah: Int, ayah: Int, page: Int, juz: Int)] {
+        // Size the portion around the user's chosen daily-lesson unit, then take
+        // that many *printed lines* of the next unlearned material.
+        let lines = HifzProgram.portionLines(
+            baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy
+        )
+        // "Already done" for Sabaq = memorized/in-progress program rows *plus* any
+        // ayahs the user marked memorized elsewhere (surah-list bulk mark, page
+        // tracking). Without the manual keys, list-marked surahs have no HifzAyah
+        // rows and get re-offered as brand-new lessons.
+        var taken = Set(existing.filter { $0.isMemorized || $0.phase == .sabaq }.map(\.key))
+        taken.formUnion(manuallyMemorizedKeys)
+        return HifzProgram.nextSabaqAtoms(
+            orderedAtoms: HifzText.orderedAtomTuples,
+            memorizedOrInProgressKeys: taken, lines: lines, fromEnd: fromEnd
+        )
     }
 
     // MARK: - Seeding pre-existing ḥifẓ
@@ -117,6 +132,7 @@ enum HifzProgramManager {
     static func confirmFlawless(
         _ ayah: HifzAyah,
         state: HifzProgramState,
+        in context: ModelContext,
         now: Date = .now
     ) {
         guard !ayah.isMemorized else { return }
@@ -129,6 +145,11 @@ enum HifzProgramManager {
         ayah.repetitions = first.repetitions        // 1
         ayah.dueDate = first.dueDate                // tomorrow
         ayah.lastReviewedAt = first.lastReviewedAt  // now — completed today
+        // A flawless first recall *is* a completed review, so log it like one.
+        // Without this a day spent only on a new lesson leaves no `ReviewLog` and
+        // therefore doesn't count toward the streak, statistics or heatmap.
+        context.insert(ReviewLog(date: now, unitKey: ayah.key, rating: .good,
+                                 intervalAfter: first.intervalDays))
         if !state.sabaqConfirmedKeys.contains(ayah.key) {
             state.sabaqConfirmedKeys.append(ayah.key)
         }
@@ -218,7 +239,8 @@ enum HifzProgramManager {
 
 /// Bridges the bundled Quran asset into the plain tuples `HifzProgram` expects.
 enum HifzText {
-    static var orderedAtomTuples: [(surah: Int, ayah: Int, page: Int, juz: Int)] {
+    /// Built once — all 6236 atoms, now read on every Sabaq preview as well as on
+    /// assignment, so remapping them per call would be wasteful.
+    static let orderedAtomTuples: [(surah: Int, ayah: Int, page: Int, juz: Int)] =
         QuranText.orderedAtoms.map { (surah: $0.surah, ayah: $0.ayah.n, page: $0.ayah.page, juz: $0.ayah.juz) }
-    }
 }
