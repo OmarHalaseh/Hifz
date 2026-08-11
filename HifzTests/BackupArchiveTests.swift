@@ -33,7 +33,7 @@ final class BackupArchiveTests: XCTestCase {
         context.insert(settings)
 
         let state = HifzProgramState(
-            manzilCursor: 17, sabqiClearedOn: now, sabaqAssignedOn: now,
+            sabqiClearedOn: now, sabaqAssignedOn: now,
             sabaqKeys: ["114:1", "114:2"], sabaqConfirmedKeys: ["114:1"]
         )
         context.insert(state)
@@ -93,7 +93,6 @@ final class BackupArchiveTests: XCTestCase {
         XCTAssertEqual(settings.memorizeReminderMinute, 30)
 
         let state = try XCTUnwrap(try restored.fetch(FetchDescriptor<HifzProgramState>()).first)
-        XCTAssertEqual(state.manzilCursor, 17)
         XCTAssertEqual(state.sabqiClearedOn, now)
         XCTAssertEqual(state.sabaqAssignedOn, now)
         XCTAssertEqual(state.sabaqKeys, ["114:1", "114:2"])
@@ -211,6 +210,23 @@ final class BackupArchiveTests: XCTestCase {
         XCTAssertEqual(ayah.phase, .sabaq)      // defaulted
         XCTAssertEqual(ayah.easeFactor, 2.5)    // defaulted
         XCTAssertNil(ayah.memorizedAt)
+    }
+
+    /// Archives from earlier builds carry `manzilCursor`, which the format no longer
+    /// captures. An unknown key must be ignored, not rejected — otherwise dropping a
+    /// field from the archive would quietly invalidate every backup taken until now.
+    func testArchiveWithRetiredFieldStillRestores() throws {
+        let json = """
+        {"format":1,"programState":{"manzilCursor":17,"sabaqKeys":["114:1"]},
+         "ayahs":[{"surah":114,"ayah":1}]}
+        """
+        let archive = try BackupArchive.decoded(from: Data(json.utf8))
+        let context = try makeContext()
+        try archive.restore(into: context)
+
+        let state = try XCTUnwrap(try context.fetch(FetchDescriptor<HifzProgramState>()).first)
+        XCTAssertEqual(state.sabaqKeys, ["114:1"])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<HifzAyah>()).count, 1)
     }
 
     /// The filename carries the export date so successive backups don't overwrite.
