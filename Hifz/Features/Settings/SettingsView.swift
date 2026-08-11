@@ -200,6 +200,8 @@ private struct SettingsForm: View {
                 Text("Get nudged to revise and to memorize new ayahs at your chosen times.")
             }
 
+            BackupSection()
+
             Section {
                 Button(role: .destructive) {
                     showResetConfirm = true

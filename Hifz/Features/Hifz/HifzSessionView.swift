@@ -299,7 +299,7 @@ struct HifzSessionView: View {
 
     /// The whole lesson is connected — confirm every ayah memorized.
     private func finishSabaq() {
-        for a in ayahs { HifzProgramManager.confirmFlawless(a, state: state) }
+        for a in ayahs { HifzProgramManager.confirmFlawless(a, state: state, in: context) }
         try? context.save()
         audio.stop()
         onFinish()
