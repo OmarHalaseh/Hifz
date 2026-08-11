@@ -235,47 +235,6 @@ final class HifzProgramTests: XCTestCase {
         XCTAssertEqual(HifzProgram.sabqiQueue([a], now: tomorrow, calendar: cal).map(\.ayah), [1])
     }
 
-    // MARK: - Manzil rotation
-
-    func testManzilExcludesRecentMaterial() {
-        let now = Date()
-        let recent = ayah(ayah: 1, page: 5, daysAgo: 2, now: now)   // in Sabqi window
-        let longTerm = ayah(ayah: 2, page: 50, daysAgo: 30, now: now)
-        let queue = HifzProgram.manzilQueue([recent, longTerm], cursor: 0, now: now)
-        XCTAssertEqual(queue.map(\.page), [50])
-    }
-
-    func testManzilRotatesThroughPagesAndWraps() {
-        let now = Date()
-        let a = ayah(ayah: 1, page: 10, daysAgo: 30, now: now)
-        let b = ayah(ayah: 2, page: 20, daysAgo: 30, now: now)
-        let c = ayah(ayah: 3, page: 30, daysAgo: 30, now: now)
-        let all = [a, b, c]  // 3 pages → 1 page/day
-        XCTAssertEqual(HifzProgram.manzilQueue(all, cursor: 0, now: now).map(\.page), [10])
-        XCTAssertEqual(HifzProgram.manzilQueue(all, cursor: 1, now: now).map(\.page), [20])
-        XCTAssertEqual(HifzProgram.manzilQueue(all, cursor: 2, now: now).map(\.page), [30])
-        XCTAssertEqual(HifzProgram.manzilQueue(all, cursor: 3, now: now).map(\.page), [10]) // wrap
-    }
-
-    func testAdvanceCursorWrapsModuloPageCount() {
-        XCTAssertEqual(HifzProgram.advanceCursor(cursor: 0, memorizedPageCount: 3), 1)
-        XCTAssertEqual(HifzProgram.advanceCursor(cursor: 2, memorizedPageCount: 3), 0)
-        XCTAssertEqual(HifzProgram.advanceCursor(cursor: 5, memorizedPageCount: 0), 0) // no pages
-    }
-
-    func testCycleLengthScalesWithVolume() {
-        XCTAssertEqual(HifzProgram.recommendedCycleDays(memorizedPages: 10), 7)
-        XCTAssertEqual(HifzProgram.recommendedCycleDays(memorizedPages: 60), 15)
-        XCTAssertEqual(HifzProgram.recommendedCycleDays(memorizedPages: 300), 30)
-    }
-
-    func testPagesPerDayCoversWholeHifzWithinCycle() {
-        XCTAssertEqual(HifzProgram.pagesPerDay(memorizedPages: 0), 0)
-        XCTAssertGreaterThanOrEqual(HifzProgram.pagesPerDay(memorizedPages: 7), 1)
-        // 300 pages over a 30-day cycle → 10 pages/day.
-        XCTAssertEqual(HifzProgram.pagesPerDay(memorizedPages: 300), 10)
-    }
-
     // MARK: - Weak links
 
     func testWeakLinksSurfaceRepeatedlyMissedMemorizedAyahsWorstFirst() {

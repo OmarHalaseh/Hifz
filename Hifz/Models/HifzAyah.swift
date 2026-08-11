@@ -101,14 +101,14 @@ final class MistakeLog {
     }
 }
 
-/// Single-row orchestration state for the daily ḥifẓ program: where the Manzil
-/// rotation cursor is, whether today's Sabqi has been cleared, and the currently
-/// assigned Sabaq portion.
+/// Single-row orchestration state for the daily ḥifẓ program: whether today's
+/// Sabqi has been cleared, and the currently assigned Sabaq portion.
+///
+/// Manzil keeps no state here — `HifzPageScheduler` derives each page's due date
+/// from its ayahs' spaced-repetition state, so there is nothing to point at. The
+/// old rotation cursor was dropped in `SchemaV5`.
 @Model
 final class HifzProgramState {
-    /// Rotation pointer into the sorted list of memorized pages (Manzil cycle).
-    var manzilCursor: Int
-
     /// Start-of-day on which today's Sabqi was fully recited. Gates new Sabaq.
     var sabqiClearedOn: Date?
 
@@ -120,13 +120,11 @@ final class HifzProgramState {
     var sabaqConfirmedKeys: [String]
 
     init(
-        manzilCursor: Int = 0,
         sabqiClearedOn: Date? = nil,
         sabaqAssignedOn: Date? = nil,
         sabaqKeys: [String] = [],
         sabaqConfirmedKeys: [String] = []
     ) {
-        self.manzilCursor = manzilCursor
         self.sabqiClearedOn = sabqiClearedOn
         self.sabaqAssignedOn = sabaqAssignedOn
         self.sabaqKeys = sabaqKeys
