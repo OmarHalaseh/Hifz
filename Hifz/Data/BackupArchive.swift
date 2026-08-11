@@ -74,9 +74,9 @@ struct BackupArchive: Codable {
     }
 
     struct ProgramStateRow: Codable {
-        // `manzilCursor` is deliberately absent: nothing reads it (see
-        // `HifzProgramState`), so there is nothing worth backing up. Archives from
-        // earlier builds still carry the key — unknown keys are ignored on decode.
+        // Archives from earlier builds also carry `manzilCursor`, an attribute
+        // dropped in `SchemaV5`. Unknown keys are ignored on decode, so those files
+        // still restore.
         var sabqiClearedOn: Date?
         var sabaqAssignedOn: Date?
         var sabaqKeys: [String]?

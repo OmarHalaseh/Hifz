@@ -104,22 +104,11 @@ final class MistakeLog {
 /// Single-row orchestration state for the daily ḥifẓ program: whether today's
 /// Sabqi has been cleared, and the currently assigned Sabaq portion.
 ///
-/// Manzil keeps no *live* state here — `HifzPageScheduler` derives each page's due
-/// date from its ayahs' spaced-repetition state, so there is nothing to point at.
+/// Manzil keeps no state here — `HifzPageScheduler` derives each page's due date
+/// from its ayahs' spaced-repetition state, so there is nothing to point at. The
+/// old rotation cursor was dropped in `SchemaV5`.
 @Model
 final class HifzProgramState {
-    /// Dead weight, kept deliberately: the rotation cursor of the old cursor-based
-    /// Manzil cycle, which `HifzPageScheduler` replaced. Nothing reads or writes it.
-    ///
-    /// It cannot simply be deleted. Every `SchemaVn` in `HifzSchema` lists the
-    /// *live* model classes rather than frozen per-version copies, so all versions
-    /// hash to the same checksum. That goes unnoticed while changes are additive
-    /// and CoreData needs no real migration — but dropping an attribute forces one,
-    /// the migration plan gets evaluated, and SwiftData aborts with "Duplicate
-    /// version checksums detected". Removing this field therefore has to wait until
-    /// each versioned schema owns frozen copies of its models.
-    var manzilCursor: Int = 0
-
     /// Start-of-day on which today's Sabqi was fully recited. Gates new Sabaq.
     var sabqiClearedOn: Date?
 
