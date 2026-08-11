@@ -9,8 +9,9 @@ import Foundation
 ///     after weak days. A portion counts as memorized only on one flawless recall.
 ///  2. SABQI  — everything memorized in the last 7 days, recited *before* any new
 ///     Sabaq. No new Sabaq until today's Sabqi is cleared.
-///  3. MANZIL — a fixed rotation over all older material so the whole ḥifẓ is seen
-///     every ~7–30 days depending on volume.
+///  3. MANZIL — all older material, kept fresh so the whole ḥifẓ is seen within a
+///     bounded window. Manzil itself lives in `HifzPageScheduler`, which schedules
+///     it per page against a hard 30-day cap; this type covers Sabaq and Sabqi.
 enum HifzProgram {
 
     // MARK: - Portion sizing (Sabaq)
@@ -162,60 +163,6 @@ enum HifzProgram {
         if sabqiCount == 0 { return true }
         guard let cleared = sabqiClearedOn else { return false }
         return calendar.isDate(cleared, inSameDayAs: now)
-    }
-
-    // MARK: - Manzil (long-term rotation)
-
-    /// Days for one full pass over all memorized material, scaled by volume.
-    static func recommendedCycleDays(memorizedPages: Int) -> Int {
-        switch memorizedPages {
-        case ..<30:  return 7
-        case ..<120: return 15
-        default:     return 30
-        }
-    }
-
-    /// Pages to review per day so the whole ḥifẓ is seen within the recommended cycle.
-    static func pagesPerDay(memorizedPages: Int) -> Int {
-        guard memorizedPages > 0 else { return 0 }
-        let cycle = recommendedCycleDays(memorizedPages: memorizedPages)
-        return max(1, Int((Double(memorizedPages) / Double(cycle)).rounded(.up)))
-    }
-
-    /// Today's Manzil slice: `pagesPerDay` pages starting at the rotation cursor,
-    /// wrapping around the sorted list of memorized pages. Sabqi (last 7 days) is
-    /// excluded — that material is handled by Sabqi, not the long-term cycle.
-    static func manzilQueue(
-        _ ayahs: [HifzAyah],
-        cursor: Int,
-        now: Date = .now,
-        sabqiDays: Int = 7,
-        calendar: Calendar = .current
-    ) -> [HifzAyah] {
-        let start = calendar.startOfDay(for: now)
-        let cutoff = calendar.date(byAdding: .day, value: -sabqiDays, to: start) ?? start
-        let longTerm = ayahs.filter { a in
-            guard let m = a.memorizedAt else { return false }
-            return m < cutoff
-        }
-        let pages = Set(longTerm.map(\.page)).sorted()
-        guard !pages.isEmpty else { return [] }
-
-        let perDay = pagesPerDay(memorizedPages: pages.count)
-        let startIndex = ((cursor % pages.count) + pages.count) % pages.count
-        let rotated = Array(pages[startIndex...] + pages[..<startIndex])
-        let todaysPages = Set(rotated.prefix(perDay))
-
-        return longTerm
-            .filter { todaysPages.contains($0.page) }
-            .sorted(by: mushafOrder)
-    }
-
-    /// Advance the rotation cursor by the pages covered today.
-    static func advanceCursor(cursor: Int, memorizedPageCount: Int) -> Int {
-        guard memorizedPageCount > 0 else { return 0 }
-        let perDay = pagesPerDay(memorizedPages: memorizedPageCount)
-        return (cursor + perDay) % memorizedPageCount
     }
 
     // MARK: - Weak links

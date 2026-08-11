@@ -214,14 +214,6 @@ enum HifzProgramManager {
         ayah.dueDate = calendar.startOfDay(for: now)   // due again today
     }
 
-    // MARK: - Cursor
-
-    static func advanceManzilCursor(state: HifzProgramState, memorizedPageCount: Int) {
-        state.manzilCursor = HifzProgram.advanceCursor(
-            cursor: state.manzilCursor, memorizedPageCount: memorizedPageCount
-        )
-    }
-
     /// Recent recall accuracy from the last `window` days of mistakes vs reviews.
     static func recentAccuracy(
         reviews: [ReviewLog],

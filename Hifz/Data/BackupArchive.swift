@@ -74,7 +74,9 @@ struct BackupArchive: Codable {
     }
 
     struct ProgramStateRow: Codable {
-        var manzilCursor: Int?
+        // Archives from earlier builds also carry `manzilCursor`, an attribute
+        // dropped in `SchemaV5`. Unknown keys are ignored on decode, so those files
+        // still restore.
         var sabqiClearedOn: Date?
         var sabaqAssignedOn: Date?
         var sabaqKeys: [String]?
@@ -204,7 +206,6 @@ struct BackupArchive: Codable {
 
         if let p = try context.fetch(FetchDescriptor<HifzProgramState>()).first {
             archive.programState = ProgramStateRow(
-                manzilCursor: p.manzilCursor,
                 sabqiClearedOn: p.sabqiClearedOn,
                 sabaqAssignedOn: p.sabaqAssignedOn,
                 sabaqKeys: p.sabaqKeys,
@@ -299,7 +300,6 @@ struct BackupArchive: Codable {
 
         if let p = programState {
             context.insert(HifzProgramState(
-                manzilCursor: p.manzilCursor ?? 0,
                 sabqiClearedOn: p.sabqiClearedOn,
                 sabaqAssignedOn: p.sabaqAssignedOn,
                 sabaqKeys: p.sabaqKeys ?? [],
