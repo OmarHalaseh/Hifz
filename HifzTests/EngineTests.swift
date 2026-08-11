@@ -155,6 +155,30 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(rows.first?.surah, 113)
     }
 
+    /// Regression: a day spent only on a new Sabaq lesson — nothing else was due —
+    /// used to leave no `ReviewLog` at all, so the streak stayed at 0 on exactly the
+    /// days a beginner needs the encouragement. Confirming an ayah now logs the
+    /// review it already is.
+    func testConfirmedSabaqLogsAReviewSoASabaqOnlyDayCountsTowardTheStreak() throws {
+        let now = Date()
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Schema.current, migrationPlan: HifzMigrationPlan.self, configurations: config
+        )
+        let context = ModelContext(container)
+        let state = HifzProgramState()
+        context.insert(state)
+
+        let a = HifzAyah(surah: 114, ayah: 1, page: 604, juz: 30)
+        context.insert(a)
+        HifzProgramManager.confirmFlawless(a, state: state, in: context, now: now)
+
+        let logs = try context.fetch(FetchDescriptor<ReviewLog>())
+        XCTAssertEqual(logs.map(\.unitKey), [a.key])
+        XCTAssertEqual(logs.first?.rating, .good)
+        XCTAssertEqual(ProgressManager.streak(from: logs, now: now, calendar: cal), 1)
+    }
+
     /// Marking a surah memorized seeds per-ayah rows dated outside the Sabqi window,
     /// so it enters the Manzil rotation directly rather than this week's daily
     /// recitation — and re-seeding is a no-op.

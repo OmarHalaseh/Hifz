@@ -79,6 +79,9 @@ struct MushafLine: Codable, Hashable {
         let ayah: Int
         let wordFrom: Int
         let wordTo: Int
+
+        /// Words of this ayah printed on the line (the range is inclusive).
+        var wordCount: Int { max(0, wordTo - wordFrom + 1) }
     }
 
     var segments: [Segment] {
@@ -205,6 +208,47 @@ enum MushafLayout {
             if start >= n { break }
         }
         return result
+    }
+
+    // MARK: - Ayah line cost
+
+    private static func costKey(_ surah: Int, _ ayah: Int) -> Int { surah * 1000 + ayah }
+
+    /// `surah*1000 + ayah` → the ayah's fractional line cost, built once from the
+    /// layout's word-level segments.
+    private static let lineCostIndex: [Int: Double] = {
+        var out: [Int: Double] = [:]
+        for page in asset.pages {
+            for line in page.lines where line.isText {
+                let segments = line.segments
+                let lineWords = segments.reduce(0) { $0 + $1.wordCount }
+                guard lineWords > 0 else { continue }
+                for segment in segments {
+                    out[costKey(segment.surah, segment.ayah), default: 0]
+                        += Double(segment.wordCount) / Double(lineWords)
+                }
+            }
+        }
+        return out
+    }()
+
+    /// One ayah's share of a printed line averaged over the whole mushaf — the
+    /// fallback for an ayah the layout doesn't cover.
+    static let averageLineCost: Double = {
+        guard QuranData.totalAyahs > 0 else { return 1 }
+        return Double(totalTextLines) / Double(QuranData.totalAyahs)
+    }()
+
+    /// How much printed line space one ayah occupies, summed over every line it
+    /// appears on. An ayah sharing a line counts only its share of that line's
+    /// words, so the costs of all ayahs printed on a page sum to that page's text-
+    /// line count.
+    ///
+    /// This is what makes a quarter page of Juzʼ ʻAmma a different *number* of
+    /// ayahs than a quarter page of Al-Baqara — the mushaf-wide average cannot
+    /// tell them apart.
+    static func lineCost(surah: Int, ayah: Int) -> Double {
+        lineCostIndex[costKey(surah, ayah)] ?? averageLineCost
     }
 
     // MARK: - Integrity
