@@ -25,9 +25,6 @@ Tools/.cache/
 # settings (hooks, agents) are ever added here and should be tracked.
 .claude/
 
-# TokenSave's local code index. `config.json` next to it is real configuration
-# and stays tracked; the SQLite database is a derived artifact, rebuilt from the
-# source tree and rewritten on every session.
-.tokensave/*.db
-.tokensave/*.db-shm
-.tokensave/*.db-wal
+# TokenSave's local code index and its config — per-machine tooling state, not
+# part of the project.
+.tokensave/
