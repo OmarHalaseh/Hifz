@@ -18,7 +18,7 @@ struct DashboardView: View {
 
     private var granularity: Granularity { settings.granularity }
     private var forecast: MemorizationForecast {
-        MemorizationForecast.compute(progress: allProgress, settings: settings)
+        MemorizationForecast.compute(program: hifzAyahs, progress: allProgress, settings: settings)
     }
     private var totalUnits: Int { QuranData.units(for: granularity).count }
 

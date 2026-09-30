@@ -69,33 +69,16 @@ struct MemorizationForecast {
 
 extension MemorizationForecast {
 
-    /// How many ayahs a single memorized unit represents, given its granularity.
-    /// Juz and page weights are even shares of the total, which keeps the forecast
-    /// consistent no matter how the user tracks.
-    static func ayahWeight(of progress: MemorizationProgress) -> Int {
-        switch progress.granularity {
-        case .surah:
-            return QuranData.surah(progress.surahNumber)?.ayahCount ?? 0
-        case .ayahRange:
-            return max(0, progress.ayahTo - progress.ayahFrom + 1)
-        case .juz:
-            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalJuz)).rounded())
-        case .page:
-            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages)).rounded())
-        case .halfPage:
-            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 2).rounded())
-        case .quarterPage:
-            return Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 4).rounded())
-        case .line:
-            return max(1, Int((Double(QuranData.totalAyahs) / Double(QuranData.totalPages) / 15).rounded()))
-        }
-    }
-
-    /// Builds a forecast from the user's progress and goal.
+    /// Builds a forecast from everything the user has memorized, by either route.
     ///
-    /// Only progress at the user's current tracking granularity counts, matching
-    /// what the dashboard shows. `recentWindow` bounds the pace estimate.
+    /// Counts **distinct ayahs** across both tracks — the ayah-atomic program
+    /// (`HifzAyah`) and every manually marked unit, whatever granularity it was
+    /// marked at — the same union the dashboard ring shows. So Sabaq progress
+    /// moves the goal bar, switching tracking granularity never hides progress,
+    /// and overlapping units are not counted twice. `recentWindow` bounds the
+    /// pace estimate.
     static func compute(
+        program: [HifzAyah] = [],
         progress: [MemorizationProgress],
         settings: AppSettings,
         now: Date = .now,
@@ -103,14 +86,13 @@ extension MemorizationForecast {
         recentWindow: Int = 30
     ) -> MemorizationForecast {
         let total = QuranData.totalAyahs
-        let memorized = progress.filter {
-            $0.status == .memorized && $0.granularity == settings.granularity
-        }
-        let memorizedAyahs = min(total, memorized.reduce(0) { $0 + ayahWeight(of: $1) })
+        let memorizedKeys = MemorizationCoverage.memorizedAyahKeys(program: program, progress: progress)
+        let memorizedAyahs = min(total, memorizedKeys.count)
 
         // Recent pace: ayahs learned within the window / elapsed days in the window.
         let pace = recentPace(
-            memorized: memorized, now: now, calendar: calendar, window: recentWindow
+            dates: MemorizationCoverage.memorizationDates(program: program, progress: progress),
+            now: now, calendar: calendar, window: recentWindow
         )
 
         // Next-juz milestone (even 1/30 slices of the total).
@@ -140,22 +122,20 @@ extension MemorizationForecast {
     }
 
     private static func recentPace(
-        memorized: [MemorizationProgress],
+        dates: [String: Date],
         now: Date,
         calendar: Calendar,
         window: Int
     ) -> Double {
         guard let cutoff = calendar.date(byAdding: .day, value: -window, to: now) else { return 0 }
-        let recent = memorized.filter { ($0.memorizedAt ?? .distantPast) >= cutoff }
-        guard !recent.isEmpty else { return 0 }
+        let recent = dates.values.filter { $0 >= cutoff }
+        guard let firstDate = recent.min() else { return 0 }
 
-        let ayahs = recent.reduce(0) { $0 + ayahWeight(of: $1) }
         // Divide by the elapsed span since the first recent memorization (capped to
         // the window) so early users aren't penalized for a short history.
-        let firstDate = recent.compactMap(\.memorizedAt).min() ?? cutoff
         let start = max(firstDate, cutoff)
         let elapsedDays = calendar.dateComponents([.day], from: start, to: now).day ?? 0
         let denominator = Double(min(window, max(1, elapsedDays)))
-        return Double(ayahs) / denominator
+        return Double(recent.count) / denominator
     }
 }
