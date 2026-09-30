@@ -36,6 +36,54 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(state.repetitions, 0)
     }
 
+    /// `Hard` used to map to quality 3, which cleared SM-2's pass threshold and
+    /// grew the interval exactly like `Good` — 6 days became ~15.
+    func testHardGrowsGentlyRatherThanLikeGood() {
+        var state = SpacedRepetition.initialState(now: now, calendar: cal)
+        state = SpacedRepetition.schedule(state, rating: .good, now: now, calendar: cal) // -> 1 day
+        state = SpacedRepetition.schedule(state, rating: .good, now: now, calendar: cal) // -> 6 days
+        XCTAssertEqual(state.intervalDays, 6)
+
+        let hard = SpacedRepetition.schedule(state, rating: .hard, now: now, calendar: cal)
+        XCTAssertEqual(hard.intervalDays, 8)             // ceil(6 × 1.2)
+        XCTAssertEqual(hard.dueDate, cal.date(byAdding: .day, value: 8, to: now))
+
+        // Well short of what a clean pass would have given from the same state.
+        let good = SpacedRepetition.schedule(state, rating: .good, now: now, calendar: cal)
+        XCTAssertGreaterThan(good.intervalDays, hard.intervalDays)
+    }
+
+    func testHardOnFreshItemSchedulesOneDay() {
+        let state = SpacedRepetition.initialState(now: now, calendar: cal)
+        let next = SpacedRepetition.schedule(state, rating: .hard, now: now, calendar: cal)
+        XCTAssertEqual(next.intervalDays, 1)
+        XCTAssertEqual(next.repetitions, 1)
+    }
+
+    func testHardNeverShrinksIntervalOrResetsRepetitions() {
+        var state = SpacedRepetition.initialState(now: now, calendar: cal)
+        for _ in 0..<4 {
+            state = SpacedRepetition.schedule(state, rating: .good, now: now, calendar: cal)
+        }
+
+        for _ in 0..<12 {
+            let before = state
+            state = SpacedRepetition.schedule(state, rating: .hard, now: now, calendar: cal)
+            XCTAssertGreaterThan(state.intervalDays, before.intervalDays)   // always moves forward
+            XCTAssertEqual(state.repetitions, before.repetitions + 1)       // and counts as a pass
+        }
+    }
+
+    /// `Hard` lowers the ease factor even though it passes — that is what makes
+    /// repeated difficulty slow every later `Good` interval too.
+    func testHardStillLowersEase() {
+        var state = SpacedRepetition.initialState(now: now, calendar: cal)
+        state = SpacedRepetition.schedule(state, rating: .good, now: now, calendar: cal)
+        let before = state.easeFactor
+        state = SpacedRepetition.schedule(state, rating: .hard, now: now, calendar: cal)
+        XCTAssertLessThan(state.easeFactor, before)
+    }
+
     func testEaseNeverDropsBelowFloor() {
         var state = SpacedRepetition.initialState(now: now, calendar: cal)
         for _ in 0..<10 {
