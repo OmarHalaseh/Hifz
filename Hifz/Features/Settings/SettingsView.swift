@@ -202,6 +202,8 @@ private struct SettingsForm: View {
 
             BackupSection()
 
+            CreditsSection()
+
             Section {
                 Button(role: .destructive) {
                     showResetConfirm = true
@@ -209,7 +211,7 @@ private struct SettingsForm: View {
                     Label("Reset all progress", systemImage: "trash")
                 }
             } footer: {
-                Text("Hifz \(appVersion) · All data is stored privately on your device.")
+                Text("All data is stored privately on your device.")
             }
         }
         .navigationTitle("Settings")
@@ -222,10 +224,6 @@ private struct SettingsForm: View {
         } message: {
             Text("This permanently deletes all memorization progress and review history. This cannot be undone.")
         }
-    }
-
-    private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
     }
 
     private func save() { try? context.save() }
