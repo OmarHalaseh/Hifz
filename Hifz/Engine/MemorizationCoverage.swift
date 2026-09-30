@@ -103,6 +103,33 @@ enum MemorizationCoverage {
         return out
     }
 
+    /// Every memorized ayah key, unioning the ayah-atomic program with the units
+    /// the user marked by hand — across *all* granularities, so an ayah covered
+    /// twice (a page that sits inside a surah already marked memorized) still
+    /// counts once. This is the count the goal forecast is expressed in.
+    static func memorizedAyahKeys(program: [HifzAyah], progress: [MemorizationProgress]) -> Set<String> {
+        memorizedKeys(from: program).union(manuallyMemorizedAyahKeys(from: progress))
+    }
+
+    /// When each memorized ayah was memorized, from whichever source knows: the
+    /// program's per-ayah date, or the date the unit containing it was marked.
+    /// The earlier date wins when both cover an ayah. Ayahs whose source recorded
+    /// no date are absent — memorized, but undatable, so they carry no pace.
+    static func memorizationDates(program: [HifzAyah], progress: [MemorizationProgress]) -> [String: Date] {
+        var out: [String: Date] = [:]
+        for ayah in program {
+            guard let date = ayah.memorizedAt else { continue }
+            out[ayah.key] = min(out[ayah.key] ?? date, date)
+        }
+        for p in progress where p.status == .memorized {
+            guard let date = p.memorizedAt else { continue }
+            for key in ayahKeys(in: trackUnit(from: p)) {
+                out[key] = min(out[key] ?? date, date)
+            }
+        }
+        return out
+    }
+
     /// A minimal `TrackUnit` carrying just the identity fields `ayahKeys(in:)`
     /// needs — enough to expand a stored progress row into its ayahs.
     private static func trackUnit(from p: MemorizationProgress) -> TrackUnit {

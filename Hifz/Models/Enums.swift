@@ -51,7 +51,8 @@ enum Granularity: String, Codable, CaseIterable, Identifiable {
     /// How many ayahs one unit of the daily goal represents at this granularity,
     /// or `nil` to count the goal directly in ayahs (surah/ayah-range vary too
     /// much to be a meaningful daily unit). Page, its fractions, row, and juz are
-    /// even shares of the whole, matching `MemorizationForecast.ayahWeight`.
+    /// even shares of the whole — an estimate for setting a pace, unlike the
+    /// forecast's memorized count, which is exact.
     var ayahsPerGoalUnit: Double? {
         let perPage = Double(QuranData.totalAyahs) / Double(QuranData.totalPages)
         switch self {
