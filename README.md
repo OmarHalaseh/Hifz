@@ -1,5 +1,7 @@
 # Hifz
 
+[![Tests](https://github.com/OmarHalaseh/Hifz/actions/workflows/test.yml/badge.svg)](https://github.com/OmarHalaseh/Hifz/actions/workflows/test.yml)
+
 Hifz is an iOS app for memorizing the Quran the way it is traditionally taught:
 the **Sabaq / Sabqi / Manzil** cycle — today's new lesson, the recent material
 still being consolidated, and the long-term review of everything already
