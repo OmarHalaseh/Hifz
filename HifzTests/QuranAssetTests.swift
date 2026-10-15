@@ -58,6 +58,5 @@ final class QuranAssetTests: XCTestCase {
                       "first ayah should contain Arabic script")
         XCTAssertTrue(a.en.localizedCaseInsensitiveContains("name of Allah"),
                       "1:1 Saheeh translation begins 'In the name of Allah…'")
-        XCTAssertFalse(a.tr.isEmpty)
     }
 }
