@@ -69,7 +69,7 @@ struct ReaderIndexView: View {
     }
 }
 
-/// Reads a single surah: Uthmani Arabic with optional transliteration + translation,
+/// Reads a single surah: Uthmani Arabic with an optional translation,
 /// and a memorized indicator per ayah.
 struct SurahReaderView: View {
     let surahNumber: Int
@@ -78,7 +78,6 @@ struct SurahReaderView: View {
     @Query private var allProgress: [MemorizationProgress]
 
     @AppStorage("reader.showTranslation") private var showTranslation = true
-    @AppStorage("reader.showTransliteration") private var showTransliteration = true
     @AppStorage("reader.arabicSize") private var arabicSize = 30.0
 
     private var surah: Surah? { QuranData.surah(surahNumber) }
@@ -105,7 +104,6 @@ struct SurahReaderView: View {
                             surahNumber: surahNumber,
                             ayah: ayah,
                             arabicSize: arabicSize,
-                            showTransliteration: showTransliteration,
                             showTranslation: showTranslation,
                             memorized: ReaderCoverage.isMemorized(surah: surahNumber, ayah: ayah, progress: allProgress)
                         )
@@ -127,7 +125,6 @@ struct SurahReaderView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Toggle("Translation", isOn: $showTranslation)
-                    Toggle("Transliteration", isOn: $showTransliteration)
                     Divider()
                     Button { arabicSize = min(48, arabicSize + 2) } label: { Label("Larger Arabic", systemImage: "textformat.size.larger") }
                     Button { arabicSize = max(20, arabicSize - 2) } label: { Label("Smaller Arabic", systemImage: "textformat.size.smaller") }
@@ -143,7 +140,6 @@ private struct AyahView: View {
     let surahNumber: Int
     let ayah: QuranAyah
     let arabicSize: Double
-    let showTransliteration: Bool
     let showTranslation: Bool
     let memorized: Bool
 
@@ -171,11 +167,6 @@ private struct AyahView: View {
                 .multilineTextAlignment(.trailing)
                 .environment(\.layoutDirection, .rightToLeft)
 
-            if showTransliteration {
-                Text(ayah.tr)
-                    .font(.callout.italic())
-                    .foregroundStyle(.secondary)
-            }
             if showTranslation {
                 Text(ayah.en)
                     .font(.footnote)

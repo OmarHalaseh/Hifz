@@ -67,8 +67,6 @@ this project's MIT license (see `LICENSE`). It is built by the scripts in
   30 juz).
 - **English translation:** Saheeh International, via
   [alquran.cloud](https://alquran.cloud) (`en.sahih`).
-- **Transliteration:** [alquran.cloud](https://alquran.cloud)
-  (`en.transliteration`).
 - **Cross-check:** alquran.cloud, a separately maintained Tanzil derivative, is
   fetched only to verify per-ayah that the consonantal skeleton and the
   page/juz numbering agree. Any real disagreement aborts the build.

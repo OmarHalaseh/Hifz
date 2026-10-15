@@ -55,8 +55,8 @@ struct CreditsSection: View {
             link: "https://tanzil.net"
         ),
         Credit(
-            what: "Translation & transliteration",
-            source: "Saheeh International, and the English transliteration, via alquran.cloud.",
+            what: "Translation",
+            source: "Saheeh International, via alquran.cloud.",
             linkLabel: "alquran.cloud",
             link: "https://alquran.cloud"
         ),
