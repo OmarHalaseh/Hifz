@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The .xcodeproj is generated from project.yml and not checked in.
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      # Runner images change their simulator set without notice, so ask the
+      # runner what it actually has rather than naming a device that may be gone.
+      - name: Pick an iPhone simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json \
+            | jq -r '.devices
+                     | to_entries
+                     | map(select(.key | contains("iOS")))
+                     | sort_by(.key)
+                     | reverse
+                     | .[].value[]
+                     | select(.name | startswith("iPhone"))
+                     | .udid' \
+            | head -n 1)
+
+          if [ -z "$udid" ]; then
+            echo "::error::No iPhone simulator is available on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using:"
+          xcrun simctl list devices available | grep "$udid"
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Hifz.xcodeproj \
+            -scheme Hifz \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -quiet
