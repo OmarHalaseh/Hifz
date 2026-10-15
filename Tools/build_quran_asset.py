@@ -12,7 +12,6 @@ Provenance & correctness policy (see Tools/README.md):
     printed and aborts the build rather than being silently accepted.
   * Page/juz/sajda numbering: Tanzil metadata (Madani mushaf, 604 pages, 30 juz).
   * Translation: alquran.cloud en.sahih (Saheeh International).
-  * Transliteration: alquran.cloud en.transliteration.
   * A SHA-256 over the canonical Arabic is embedded in the asset and printed so a
     unit test can pin it; re-running this script must reproduce the same hash.
 
@@ -95,7 +94,6 @@ def main():
     meta_path = fetch(TANZIL_META, "tanzil-metadata.xml")
     aqc_ar = load_aqc(fetch(AQC.format("quran-uthmani"), "aqc_uthmani.json"))
     aqc_en = load_aqc(fetch(AQC.format("en.sahih"), "aqc_sahih.json"))
-    aqc_tr = load_aqc(fetch(AQC.format("en.transliteration"), "aqc_translit.json"))
 
     assert len(tz) == 6236, f"expected 6236 ayahs, got {len(tz)}"
 
@@ -177,7 +175,6 @@ def main():
         while (s, a) in tz:
             rec = {"n": a, "ar": tz[(s, a)],
                    "en": aqc_en[(s, a)]["text"].strip(),
-                   "tr": aqc_tr[(s, a)]["text"].strip(),
                    "juz": juz_of[(s, a)], "page": page_of[(s, a)]}
             if (s, a) in sajdas:
                 rec["sajda"] = True
@@ -190,7 +187,6 @@ def main():
             "arabicEdition": "Tanzil Uthmani (Hafs), with pause marks",
             "arabicSource": "tanzil.net",
             "translation": "Saheeh International (en.sahih via alquran.cloud)",
-            "transliteration": "English transliteration (en.transliteration via alquran.cloud)",
             "mushaf": "KFGQPC Madani — 604 pages, 15 lines/page, Hafs 'an 'Asim",
             "pageNumbering": "Madani 604 (Tanzil metadata)",
             "ayahCount": len(tz),

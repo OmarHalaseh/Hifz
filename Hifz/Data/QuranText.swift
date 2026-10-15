@@ -7,7 +7,6 @@ struct QuranAyah: Codable, Identifiable, Hashable {
     let n: Int          // ayah number within the surah
     let ar: String      // Uthmani Arabic (Tanzil origin)
     let en: String      // Saheeh International translation
-    let tr: String      // English transliteration
     let juz: Int
     let page: Int       // Madani mushaf page (1…604)
     let sajda: Bool?
@@ -31,7 +30,6 @@ enum QuranText {
         let arabicEdition: String
         let arabicSource: String
         let translation: String
-        let transliteration: String
         let mushaf: String
         let pageNumbering: String
         let ayahCount: Int
@@ -50,7 +48,7 @@ enum QuranText {
         else {
             assertionFailure("quran.json missing or malformed")
             return Asset(meta: Meta(arabicEdition: "", arabicSource: "", translation: "",
-                                    transliteration: "", mushaf: "", pageNumbering: "",
+                                    mushaf: "", pageNumbering: "",
                                     ayahCount: 0, arabicSHA256: ""), surahs: [])
         }
         return decoded
