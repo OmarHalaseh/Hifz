@@ -124,6 +124,48 @@ enum HifzProgramManager {
         return created
     }
 
+    /// Undoes a "memorized" mark — e.g. after accidentally bulk-marking too many
+    /// surahs. Every ayah in `units` is removed from the ḥifẓ (its `HifzAyah` row
+    /// is deleted, so it leaves Sabqi/Manzil and is offered again as a new Sabaq),
+    /// and the units' own progress rows get `status`.
+    ///
+    /// A manual mark on an *overlapping* unit (say Juzʼ 30, when un-marking only
+    /// An-Nās) would otherwise keep those ayahs memorized. Such a unit is downgraded
+    /// to `.learning`, and the ayahs of it that are still memorized are seeded as
+    /// `HifzAyah` rows first — so un-marking one surah never un-marks its neighbours.
+    static func unmark(
+        units: [TrackUnit],
+        status: MemorizationStatus = .notStarted,
+        existing: [HifzAyah],
+        progress: [MemorizationProgress],
+        in context: ModelContext,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) {
+        let removed = Set(units.flatMap { MemorizationCoverage.ayahKeys(in: $0) })
+        guard !removed.isEmpty else { return }
+        let unitKeys = Set(units.map(\.key))
+
+        var rows = existing
+        for p in progress where p.status == .memorized && !unitKeys.contains(p.unitKey) {
+            let unit = MemorizationCoverage.trackUnit(from: p)
+            let keys = MemorizationCoverage.ayahKeys(in: unit)
+            guard keys.contains(where: removed.contains) else { continue }
+            rows += seedMemorized(units: [unit], existing: rows, in: context, now: now, calendar: calendar)
+            ProgressManager.setStatus(.learning, for: p, now: now)
+        }
+
+        for row in rows where removed.contains(row.key) {
+            context.delete(row)
+        }
+        for unit in units {
+            // No row and nothing to record → don't create an empty one.
+            if status == .notStarted, !progress.contains(where: { $0.unitKey == unit.key }) { continue }
+            let p = ProgressManager.progress(for: unit, existing: progress, in: context)
+            ProgressManager.setStatus(status, for: p, now: now)
+        }
+    }
+
     /// The "quality over speed" gate: mark an ayah memorized only on a flawless
     /// recall. Sets `memorizedAt` once, graduates it to Sabqi, and — because a
     /// flawless recall *is* the first successful review — advances SM-2 one step

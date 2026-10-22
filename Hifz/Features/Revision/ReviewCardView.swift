@@ -35,7 +35,7 @@ struct ReviewCardView: View {
         VStack(spacing: 16) {
             if let arabic = unit.arabic {
                 Text(arabic)
-                    .font(.system(size: 52, weight: .bold))
+                    .font(.quran(size: 52))
                     .environment(\.layoutDirection, .rightToLeft)
             }
             Text(unit.title).font(.title2.weight(.semibold))

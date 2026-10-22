@@ -12,9 +12,22 @@ struct SurahDetailView: View {
     @State private var status: MemorizationStatus = .notStarted
     @State private var strength: Double = 0.5
     @State private var reviewing = false
+    /// The status the user picked when that means un-marking a memorized unit —
+    /// held until they confirm, since it drops the unit's revision history.
+    @State private var pendingDowngrade: MemorizationStatus?
 
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var existing: MemorizationProgress? { allProgress.first { $0.unitKey == unit.key } }
+
+    /// What the rest of the app shows for this unit: the manual mark unioned with
+    /// the ḥifẓ program's ayah coverage.
+    private var effectiveStatus: MemorizationStatus {
+        MemorizationCoverage.status(
+            for: unit,
+            memorizedKeys: MemorizationCoverage.memorizedKeys(from: hifzAyahs),
+            stored: existing?.status
+        )
+    }
 
     var body: some View {
         List {
@@ -22,7 +35,7 @@ struct SurahDetailView: View {
                 VStack(spacing: 8) {
                     if let arabic = unit.arabic {
                         Text(arabic)
-                            .font(.system(size: 44, weight: .bold))
+                            .font(.quran(size: 44))
                             .environment(\.layoutDirection, .rightToLeft)
                     }
                     Text(unit.title).font(.title3.weight(.semibold))
@@ -34,13 +47,12 @@ struct SurahDetailView: View {
             }
 
             Section("Status") {
-                Picker("Status", selection: $status) {
+                Picker("Status", selection: Binding(get: { status }, set: pick)) {
                     ForEach(MemorizationStatus.allCases) { s in
                         Text(s.label).tag(s)
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: status) { _, newValue in applyStatus(newValue) }
             }
 
             if status == .memorized, let p = existing {
@@ -85,7 +97,21 @@ struct SurahDetailView: View {
             }
         }
         .onAppear {
-            if let p = existing { status = p.status; strength = p.strength }
+            status = effectiveStatus
+            if let p = existing { strength = p.strength }
+        }
+        .confirmationDialog(
+            "Mark \(unit.title) as \(pendingDowngrade?.label.lowercased() ?? "")?",
+            isPresented: Binding(get: { pendingDowngrade != nil },
+                                 set: { if !$0 { pendingDowngrade = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Remove from memorized", role: .destructive) {
+                if let target = pendingDowngrade { applyStatus(target) }
+                pendingDowngrade = nil
+            }
+        } message: {
+            Text("It leaves your revision (Sabqi/Manzil) and comes back as a new lesson. Its revision history is removed.")
         }
         .sheet(isPresented: $reviewing) {
             if let p = existing {
@@ -95,13 +121,43 @@ struct SurahDetailView: View {
         }
     }
 
-    private func applyStatus(_ newValue: MemorizationStatus) {
-        let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
-        ProgressManager.setStatus(newValue, for: progress)
-        // Seed per-ayah rows so a memorized unit enters the Manzil revision rotation.
-        if newValue == .memorized {
-            HifzProgramManager.seedMemorized(units: [unit], existing: hifzAyahs, in: context)
+    /// The picker's setter: un-marking something memorized waits for confirmation.
+    private func pick(_ newValue: MemorizationStatus) {
+        guard newValue != status else { return }
+        if removesProgramAyahs(newValue) {
+            pendingDowngrade = newValue
+        } else {
+            applyStatus(newValue)
         }
+    }
+
+    /// Whether moving to `newValue` means taking ayahs out of the ḥifẓ: anything
+    /// below "memorized" for a memorized unit, or "not started" for one the
+    /// program has partly covered.
+    private func removesProgramAyahs(_ newValue: MemorizationStatus) -> Bool {
+        switch newValue {
+        case .memorized: return false
+        case .learning: return effectiveStatus == .memorized
+        case .notStarted:
+            let keys = Set(MemorizationCoverage.ayahKeys(in: unit))
+            return effectiveStatus == .memorized || hifzAyahs.contains { keys.contains($0.key) }
+        }
+    }
+
+    private func applyStatus(_ newValue: MemorizationStatus) {
+        if newValue == .memorized {
+            let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
+            ProgressManager.setStatus(newValue, for: progress)
+            // Seed per-ayah rows so a memorized unit enters the Manzil revision rotation.
+            HifzProgramManager.seedMemorized(units: [unit], existing: hifzAyahs, in: context)
+        } else if removesProgramAyahs(newValue) {
+            HifzProgramManager.unmark(units: [unit], status: newValue, existing: hifzAyahs,
+                                      progress: allProgress, in: context)
+        } else {
+            let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
+            ProgressManager.setStatus(newValue, for: progress)
+        }
+        status = newValue
         try? context.save()
     }
 

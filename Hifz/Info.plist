@@ -36,5 +36,9 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>UthmanicHafs1Ver18.ttf</string>
+	</array>
 </dict>
 </plist>

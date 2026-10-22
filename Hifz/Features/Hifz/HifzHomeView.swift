@@ -37,6 +37,18 @@ struct HifzHomeView: View {
     /// Long-term revision is now scheduled per page with a hard 30-day cap
     /// (`HifzPageScheduler`), budgeted in lines — not by a rotation cursor.
     private var manzil: [HifzAyah] { HifzPageScheduler.manzilDueAyahs(from: ayahs, fromEnd: sabaqFromEnd) }
+
+    /// What today's Manzil covers, by surah — "An-Naba, Al-Baqara (part 3/48)".
+    private var manzilNote: String {
+        let blocks = HifzPageScheduler.revisionBlocks(from: ayahs)
+        let due = HifzPageScheduler.blockQueue(
+            blocks, lineBudget: HifzPageScheduler.blockLineBudget(blocks), fromEnd: sabaqFromEnd)
+        let names = due.map { b -> String in
+            let name = QuranData.surah(b.surah)?.transliteration ?? "Surah \(b.surah)"
+            return b.isWholeSurah ? name : "\(name) (part \(b.part)/\(b.partCount))"
+        }
+        return names.isEmpty ? "Today's slice of the long-term cycle." : names.joined(separator: ", ")
+    }
     private var weakLinks: [HifzAyah] { HifzProgram.weakLinks(ayahs) }
 
     private var recentAccuracy: Double {
@@ -101,6 +113,22 @@ struct HifzHomeView: View {
                 weakLinkSection
             }
             .navigationTitle("Ḥifẓ")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        HifzPlanView(
+                            ayahs: ayahs,
+                            manuallyMemorizedKeys: MemorizationCoverage.manuallyMemorizedAyahKeys(from: progress),
+                            lessonLines: HifzProgram.portionLines(
+                                baseLines: settings.sabaqUnit.baseLines, recentAccuracy: recentAccuracy),
+                            sabaqDoneToday: sabaqDoneToday,
+                            fromEnd: sabaqFromEnd
+                        )
+                    } label: {
+                        Label("Plan", systemImage: "calendar")
+                    }
+                }
+            }
             .navigationDestination(item: $active) { session in
                 HifzSessionView(
                     kind: session.kind,
@@ -171,8 +199,7 @@ struct HifzHomeView: View {
     @ViewBuilder private var manzilSection: some View {
         if !manzil.isEmpty {
             Section {
-                PhaseCard(phase: .manzil, count: manzil.count,
-                          note: "Today's slice of the long-term cycle.") {
+                PhaseCard(phase: .manzil, count: manzil.count, note: manzilNote) {
                     active = ActiveSession(kind: .manzil, ayahs: manzil)
                 }
             }
