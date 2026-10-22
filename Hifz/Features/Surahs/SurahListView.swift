@@ -20,6 +20,9 @@ struct SurahListView: View {
     @State private var selecting = false
     @State private var selectedKeys: Set<String> = []
 
+    /// Units waiting on the "mark as not memorized" confirmation.
+    @State private var pendingUnmark: [TrackUnit] = []
+
     private var settings: AppSettings { settingsList.first ?? AppSettings.current(in: context) }
     private var granularity: Granularity { settings.granularity }
 
@@ -106,7 +109,27 @@ struct SurahListView: View {
             .sheet(isPresented: $showAddAyahRange) {
                 AddAyahRangeView()
             }
+            .confirmationDialog(
+                unmarkTitle,
+                isPresented: Binding(get: { !pendingUnmark.isEmpty },
+                                     set: { if !$0 { pendingUnmark = [] } }),
+                titleVisibility: .visible
+            ) {
+                Button("Mark as not memorized", role: .destructive) {
+                    mark(pendingUnmark, memorized: false)
+                    pendingUnmark = []
+                    exitSelection()
+                }
+            } message: {
+                Text("They leave your revision (Sabqi/Manzil) and come back as new lessons. Their revision history is removed.")
+            }
         }
+    }
+
+    private var unmarkTitle: String {
+        pendingUnmark.count == 1
+            ? "Mark \(pendingUnmark[0].title) as not memorized?"
+            : "Mark \(pendingUnmark.count) as not memorized?"
     }
 
     private var navTitle: String {
@@ -132,23 +155,51 @@ struct SurahListView: View {
             } label: {
                 UnitRow(unit: unit, status: st)
             }
+            .swipeActions(edge: .trailing) {
+                if st == .notStarted {
+                    Button { mark([unit], memorized: true) } label: {
+                        Label("Memorized", systemImage: "checkmark.circle")
+                    }
+                    .tint(.green)
+                } else {
+                    Button { pendingUnmark = [unit] } label: {
+                        Label("Not memorized", systemImage: "arrow.uturn.backward.circle")
+                    }
+                    .tint(.orange)
+                }
+            }
         }
         .listStyle(.plain)
         .environment(\.editMode, .constant(selecting ? .active : .inactive))
     }
 
-    /// Marks every selected unit as memorized in one save, then exits select mode.
-    private func markSelectedMemorized() {
-        let marked = units.filter { selectedKeys.contains($0.key) }
-        for unit in marked {
-            let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
-            ProgressManager.setStatus(.memorized, for: progress)
+    /// Marks every selected unit memorized — or not — in one save, then exits
+    /// select mode. Un-marking asks for confirmation first, since it drops the
+    /// units' revision history.
+    private func markSelected(memorized: Bool) {
+        let chosen = units.filter { selectedKeys.contains($0.key) }
+        if memorized {
+            mark(chosen, memorized: true)
+            exitSelection()
+        } else {
+            pendingUnmark = chosen
         }
-        // Seed per-ayah rows so the marked ḥifẓ enters the Manzil revision rotation,
-        // not just the coarse progress ledger.
-        HifzProgramManager.seedMemorized(units: marked, existing: hifzAyahs, in: context)
+    }
+
+    private func mark(_ chosen: [TrackUnit], memorized: Bool) {
+        if memorized {
+            for unit in chosen {
+                let progress = ProgressManager.progress(for: unit, existing: allProgress, in: context)
+                ProgressManager.setStatus(.memorized, for: progress)
+            }
+            // Seed per-ayah rows so the marked ḥifẓ enters the Manzil revision
+            // rotation, not just the coarse progress ledger.
+            HifzProgramManager.seedMemorized(units: chosen, existing: hifzAyahs, in: context)
+        } else {
+            HifzProgramManager.unmark(units: chosen, existing: hifzAyahs,
+                                      progress: allProgress, in: context)
+        }
         try? context.save()
-        exitSelection()
     }
 
     private func exitSelection() {
@@ -170,14 +221,22 @@ struct SurahListView: View {
 
     private var selectionActionBar: some View {
         HStack {
-            Text(selectedKeys.isEmpty ? "Select surahs to mark" : "\(selectedKeys.count) selected")
+            Text(selectedKeys.isEmpty ? "Select to mark" : "\(selectedKeys.count) selected")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
             Button {
-                markSelectedMemorized()
+                markSelected(memorized: false)
             } label: {
-                Label("Mark memorized", systemImage: "checkmark.circle.fill")
+                Label("Not memorized", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .disabled(selectedKeys.isEmpty)
+            Button {
+                markSelected(memorized: true)
+            } label: {
+                Label("Memorized", systemImage: "checkmark.circle.fill")
             }
             .buttonStyle(.borderedProminent)
             .disabled(selectedKeys.isEmpty)
@@ -234,7 +293,7 @@ struct UnitRow: View {
             Spacer()
             if let arabic = unit.arabic {
                 Text(arabic)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.quran(size: 22))
                     .environment(\.layoutDirection, .rightToLeft)
             }
         }

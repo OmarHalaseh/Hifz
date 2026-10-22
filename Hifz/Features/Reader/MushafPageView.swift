@@ -3,8 +3,9 @@ import SwiftUI
 /// A mushaf-style page reader: ayahs grouped by their real Madani page (1…604),
 /// rendered as flowing right-to-left Uthmani text coloured by tajweed rule.
 ///
-/// This is a page-grouped reading view, not a glyph-exact reproduction of the
-/// printed KFGQPC mushaf (that needs per-page QCF fonts — the deferred P4 target).
+/// Set in the mushaf typeface (KFGQPC HAFS Uthmanic Script, see `Font.quran`), so
+/// it reads like a printed Madani mushaf, though lines don't break exactly where
+/// the print does (that needs per-page QCF fonts — the deferred P4 target).
 /// Colours come from the `quran-tajweed` overlay; if that asset is missing the
 /// text still renders, just uncoloured.
 struct MushafPageView: View {
@@ -142,8 +143,8 @@ private struct MushafPageContent: View {
             text = text + segment(surah: group.surah, ayah: ayah)
         }
         return text
-            .font(.system(size: arabicSize, weight: .regular))
-            .lineSpacing(arabicSize * 0.55)
+            .font(.quran(size: arabicSize))
+            .lineSpacing(arabicSize * 0.2)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .environment(\.layoutDirection, .rightToLeft)
@@ -162,9 +163,8 @@ private struct MushafPageContent: View {
     }
 
     private func ayahMarker(_ n: Int) -> Text {
-        Text(" ﴿\(arabicDigits(n))﴾ ")
-            .foregroundColor(.secondary)
-            .font(.system(size: arabicSize * 0.72))
+        Text(" \(ayahEndMarker(n)) ")
+            .foregroundColor(.accentColor)
     }
 
     /// Helper used only for the basmala header (no marker).
@@ -177,8 +177,8 @@ private struct MushafPageContent: View {
             t = t + Text(fallback).foregroundColor(.primary)
         }
         return t
-            .font(.system(size: size, weight: .regular))
-            .lineSpacing(size * 0.5)
+            .font(.quran(size: size))
+            .lineSpacing(size * 0.2)
             .multilineTextAlignment(.center)
             .environment(\.layoutDirection, .rightToLeft)
     }
@@ -195,7 +195,7 @@ private struct SurahBanner: View {
             Spacer()
             VStack(spacing: 2) {
                 Text(meta?.nameArabic ?? "")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.quran(size: 24))
                     .environment(\.layoutDirection, .rightToLeft)
                 Text("\(meta?.transliteration ?? "") · \(meta.map { "\($0.ayahCount) ayahs" } ?? "")")
                     .font(.caption2).foregroundStyle(.secondary)

@@ -132,7 +132,7 @@ enum MemorizationCoverage {
 
     /// A minimal `TrackUnit` carrying just the identity fields `ayahKeys(in:)`
     /// needs — enough to expand a stored progress row into its ayahs.
-    private static func trackUnit(from p: MemorizationProgress) -> TrackUnit {
+    static func trackUnit(from p: MemorizationProgress) -> TrackUnit {
         TrackUnit(
             key: p.unitKey, granularity: p.granularity, title: "", subtitle: "", arabic: nil,
             surahNumber: p.surahNumber, pageNumber: p.pageNumber, juzNumber: p.juzNumber,

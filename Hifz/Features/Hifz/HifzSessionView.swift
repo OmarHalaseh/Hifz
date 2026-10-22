@@ -150,8 +150,8 @@ struct HifzSessionView: View {
 
     private func ayahCard(_ group: [HifzAyah]) -> some View {
         arabic(for: group)
-            .font(.system(size: 30, weight: .regular))
-            .lineSpacing(16)
+            .font(.quran(size: 30))
+            .lineSpacing(6)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .environment(\.layoutDirection, .rightToLeft)
@@ -183,19 +183,10 @@ struct HifzSessionView: View {
                 piece = Text(QuranText.ayah(surah: a.surah, ayah: a.ayah)?.ar ?? "")
             }
             let marker = showMarkers
-                ? Text(" \u{06DD}\(arabicIndic(a.ayah)) ").foregroundColor(.accentColor)
+                ? Text(" \(ayahEndMarker(a.ayah)) ").foregroundColor(.accentColor)
                 : Text("  ")
             return acc + piece + marker
         }
-    }
-
-    /// Western digits rendered as Arabic-Indic (١٢٣) for the ayah marker.
-    private func arabicIndic(_ n: Int) -> String {
-        let map: [Character: Character] = [
-            "0": "٠", "1": "١", "2": "٢", "3": "٣", "4": "٤",
-            "5": "٥", "6": "٦", "7": "٧", "8": "٨", "9": "٩",
-        ]
-        return String(String(n).map { map[$0] ?? $0 })
     }
 
     private func audioAndReveal(_ group: [HifzAyah]) -> some View {

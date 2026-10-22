@@ -56,7 +56,7 @@ struct ReaderIndexView: View {
                     }
                     Spacer()
                     Text(surah.nameArabic)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.quran(size: 22))
                         .environment(\.layoutDirection, .rightToLeft)
                 }
                 .padding(.vertical, 2)
@@ -94,7 +94,7 @@ struct SurahReaderView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if showsBasmalaHeader && !basmala.isEmpty {
                         Text(basmala)
-                            .font(.system(size: arabicSize * 0.8, weight: .semibold))
+                            .font(.quran(size: arabicSize * 0.8))
                             .frame(maxWidth: .infinity)
                             .environment(\.layoutDirection, .rightToLeft)
                             .padding(.vertical, 16)
@@ -160,9 +160,9 @@ private struct AyahView: View {
                 }
             }
 
-            Text(ayah.ar)
-                .font(.system(size: arabicSize, weight: .medium))
-                .lineSpacing(arabicSize * 0.5)
+            Text(ayah.ar + " " + ayahEndMarker(ayah.n))
+                .font(.quran(size: arabicSize))
+                .lineSpacing(arabicSize * 0.2)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .multilineTextAlignment(.trailing)
                 .environment(\.layoutDirection, .rightToLeft)
