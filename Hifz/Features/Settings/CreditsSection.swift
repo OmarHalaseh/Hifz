@@ -55,6 +55,12 @@ struct CreditsSection: View {
             link: "https://tanzil.net"
         ),
         Credit(
+            what: "Mushaf font",
+            source: "KFGQPC HAFS Uthmanic Script by the King Fahd Glorious Qur'an Printing Complex, Madinah — bundled unmodified under its free-distribution licence.",
+            linkLabel: "qurancomplex.gov.sa",
+            link: "https://qurancomplex.gov.sa"
+        ),
+        Credit(
             what: "Translation",
             source: "Saheeh International, via alquran.cloud.",
             linkLabel: "alquran.cloud",

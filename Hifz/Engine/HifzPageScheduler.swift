@@ -1,9 +1,13 @@
 import Foundation
 
-/// Page-level Sabaq / Sabqi / Manzil scheduling. The scheduling **unit is the
-/// mushaf page**, but page state is *derived* by aggregating the underlying
-/// `HifzAyah` rows — no separate page model is stored, so a page's freshness,
-/// interval and strength all fall out of its ayahs' spaced-repetition state.
+/// Sabaq / Sabqi / Manzil scheduling. Page state is *derived* by aggregating the
+/// underlying `HifzAyah` rows — no separate page model is stored, so a page's
+/// freshness, interval and strength all fall out of its ayahs' spaced-repetition
+/// state.
+///
+/// Daily Manzil is picked in **revision blocks** rather than raw pages: a short
+/// surah (≤ two pages) is one block and always revised whole, while a long surah
+/// is split into page-sized parts so Al-Baqara is spread over many days.
 ///
 /// Manzil enforces a **hard 30-day cap**:
 ///
@@ -129,18 +133,209 @@ enum HifzPageScheduler {
                            now: now, fromEnd: fromEnd, calendar: calendar)
     }
 
-    /// The memorized `HifzAyah` rows on today's due Manzil pages, in mushaf order —
-    /// the ready-to-drill set for a Manzil session. With `fromEnd`, page selection
-    /// and recitation order both run from the end of the mushaf (An-Nās first).
+    /// The memorized `HifzAyah` rows due for Manzil today, in recitation order —
+    /// the ready-to-drill set for a Manzil session. Selection runs on **revision
+    /// blocks** (see `revisionBlocks`), so a short surah is always revised whole and
+    /// a long one a page at a time. With `fromEnd`, block selection and recitation
+    /// order both run from the end of the mushaf (An-Nās first).
     static func manzilDueAyahs(
         from ayahs: [HifzAyah], now: Date = .now, fromEnd: Bool = false,
         calendar: Calendar = .current
     ) -> [HifzAyah] {
-        let duePages = Set(todaysManzilPages(from: ayahs, now: now, fromEnd: fromEnd,
-                                             calendar: calendar).map(\.page))
+        let blocks = revisionBlocks(from: ayahs, now: now, calendar: calendar)
+        let due = blockQueue(blocks, lineBudget: blockLineBudget(blocks),
+                             now: now, fromEnd: fromEnd, calendar: calendar)
+        let keys = Set(due.flatMap(\.ayahKeys))
         return ayahs
-            .filter { $0.isMemorized && duePages.contains($0.page) }
+            .filter { $0.isMemorized && keys.contains($0.key) }
             .sorted(by: HifzProgram.mushafOrder(fromEnd: fromEnd))
+    }
+
+    // MARK: - Revision blocks (surah-aware Manzil units)
+
+    /// A surah whose memorized part fits in this many printed lines (two pages) is
+    /// revised in one sitting. Splitting it — as pure page scheduling does when a
+    /// short surah straddles a page break — leaves you reciting half a surah.
+    static let wholeSurahMaxLines = 2.0 * Double(MushafUnitKind.page.baseLines)
+
+    /// A page-part of a long surah shorter than this is folded into its neighbour,
+    /// so a surah that ends three lines into a page doesn't become a separate,
+    /// three-line revision.
+    static let minPartLines = 5.0
+
+    /// One unit of long-term revision: a whole short surah, or one page-sized part
+    /// of a long one (e.g. Al-Baqara part 7 of 48). Derived from `HifzAyah` rows,
+    /// never persisted. Its freshness is that of its least-recently-reviewed ayah.
+    struct RevisionBlock: Hashable, Identifiable {
+        let surah: Int
+        let part: Int           // 1-based; 1 for a whole surah
+        let partCount: Int
+        let firstPage: Int
+        let lastPage: Int
+        let ayahKeys: [String]
+        let firstAyah: Int
+        let lastAyah: Int
+        let lines: Double
+        let lastReviewed: Date?
+        let srInterval: Int
+
+        var id: String { "\(surah)-\(part)" }
+        var isWholeSurah: Bool { partCount == 1 }
+
+        /// Next due date under the 30-day cap; never reviewed → due now.
+        func nextDue(cap: Int = HifzPageScheduler.manzilCapDays, calendar: Calendar = .current) -> Date {
+            guard let last = lastReviewed else { return .distantPast }
+            return calendar.date(byAdding: .day, value: min(srInterval, cap),
+                                 to: calendar.startOfDay(for: last)) ?? .distantPast
+        }
+    }
+
+    /// The scheduling fields of one memorized ayah, as a plain value — so blocks
+    /// can be built from live `HifzAyah` rows or from a simulated future state
+    /// (the revision forecast in `HifzPlan`).
+    struct AyahSnapshot: Hashable {
+        var key: String
+        var surah: Int
+        var ayah: Int
+        var page: Int
+        var memorizedAt: Date?
+        var lastReviewedAt: Date?
+        var intervalDays: Int
+        var repetitions: Int
+        var easeFactor: Double
+
+        init(_ row: HifzAyah) {
+            key = row.key; surah = row.surah; ayah = row.ayah; page = row.page
+            memorizedAt = row.memorizedAt; lastReviewedAt = row.lastReviewedAt
+            intervalDays = row.intervalDays; repetitions = row.repetitions
+            easeFactor = row.easeFactor
+        }
+
+        init(surah: Int, ayah: Int, page: Int, memorizedAt: Date?, lastReviewedAt: Date? = nil,
+             intervalDays: Int = 0, repetitions: Int = 0, easeFactor: Double = 2.5) {
+            self.key = HifzAyah.makeKey(surah: surah, ayah: ayah)
+            self.surah = surah; self.ayah = ayah; self.page = page
+            self.memorizedAt = memorizedAt; self.lastReviewedAt = lastReviewedAt
+            self.intervalDays = intervalDays; self.repetitions = repetitions
+            self.easeFactor = easeFactor
+        }
+    }
+
+    static func revisionBlocks(
+        from ayahs: [HifzAyah],
+        lineCost: (Int, Int) -> Double = { MushafLayout.lineCost(surah: $0, ayah: $1) },
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [RevisionBlock] {
+        revisionBlocks(from: ayahs.map(AyahSnapshot.init), lineCost: lineCost, now: now, calendar: calendar)
+    }
+
+    /// Groups memorized, Manzil-age ayahs (memorized before the Sabqi window) into
+    /// revision blocks. Recent ayahs are left to Sabqi, which recites them daily.
+    static func revisionBlocks(
+        from ayahs: [AyahSnapshot],
+        lineCost: (Int, Int) -> Double = { MushafLayout.lineCost(surah: $0, ayah: $1) },
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> [RevisionBlock] {
+        guard let cutoff = calendar.date(byAdding: .day, value: -sabqiDays,
+                                         to: calendar.startOfDay(for: now)) else { return [] }
+        let eligible = ayahs.filter { ($0.memorizedAt ?? .distantFuture) < cutoff }
+
+        var out: [RevisionBlock] = []
+        for (surah, rows) in Dictionary(grouping: eligible, by: \.surah) {
+            let sorted = rows.sorted { $0.ayah < $1.ayah }
+            func cost(_ a: AyahSnapshot) -> Double { max(0, lineCost(a.surah, a.ayah)) }
+            let total = sorted.reduce(0) { $0 + cost($1) }
+
+            var parts: [[AyahSnapshot]]
+            if total <= wholeSurahMaxLines {
+                parts = [sorted]
+            } else {
+                parts = []
+                for row in sorted {
+                    if let last = parts.last?.last, last.page == row.page {
+                        parts[parts.count - 1].append(row)
+                    } else {
+                        parts.append([row])
+                    }
+                }
+                // Fold slivers into the previous part (or the next, for the first).
+                var merged: [[AyahSnapshot]] = []
+                for part in parts {
+                    let lines = part.reduce(0) { $0 + cost($1) }
+                    if lines < minPartLines, !merged.isEmpty {
+                        merged[merged.count - 1].append(contentsOf: part)
+                    } else {
+                        merged.append(part)
+                    }
+                }
+                if merged.count > 1, merged[0].reduce(0, { $0 + cost($1) }) < minPartLines {
+                    merged[1].insert(contentsOf: merged.removeFirst(), at: 0)
+                }
+                parts = merged
+            }
+
+            for (i, part) in parts.enumerated() {
+                out.append(RevisionBlock(
+                    surah: surah,
+                    part: i + 1,
+                    partCount: parts.count,
+                    firstPage: part.map(\.page).min() ?? 0,
+                    lastPage: part.map(\.page).max() ?? 0,
+                    ayahKeys: part.map(\.key),
+                    firstAyah: part.first?.ayah ?? 0,
+                    lastAyah: part.last?.ayah ?? 0,
+                    lines: part.reduce(0) { $0 + cost($1) },
+                    lastReviewed: part.compactMap { $0.lastReviewedAt ?? $0.memorizedAt }.min(),
+                    srInterval: part.map(\.intervalDays).min() ?? 0
+                ))
+            }
+        }
+        return out.sorted { ($0.surah, $0.part) < ($1.surah, $1.part) }
+    }
+
+    /// Daily line budget that covers every block within the 30-day cap, in whole
+    /// pages: `ceil(totalLines / 30)` rounded up to a page, at least one page.
+    static func blockLineBudget(_ blocks: [RevisionBlock]) -> Int {
+        let total = blocks.reduce(0) { $0 + $1.lines }
+        guard total > 0 else { return 0 }
+        let page = MushafUnitKind.page.baseLines
+        let perDay = Int((total / Double(manzilCapDays)).rounded(.up))
+        return max(page, Int((Double(perDay) / Double(page)).rounded(.up)) * page)
+    }
+
+    /// Today's Manzil blocks: due blocks, most overdue first, filled up to
+    /// `lineBudget`. The most overdue block is always taken so nothing starves.
+    /// Ties go toward the reading direction, then to the earlier part of a surah.
+    static func blockQueue(
+        _ blocks: [RevisionBlock],
+        lineBudget: Int,
+        now: Date = .now,
+        fromEnd: Bool = false,
+        calendar: Calendar = .current
+    ) -> [RevisionBlock] {
+        let today = calendar.startOfDay(for: now)
+        let due = blocks
+            .filter { $0.nextDue(calendar: calendar) <= today }
+            .sorted { lhs, rhs in
+                let l = lhs.nextDue(calendar: calendar), r = rhs.nextDue(calendar: calendar)
+                if l != r { return l < r }
+                if lhs.surah != rhs.surah { return fromEnd ? lhs.surah > rhs.surah : lhs.surah < rhs.surah }
+                return lhs.part < rhs.part
+            }
+
+        var out: [RevisionBlock] = []
+        var lines = 0.0
+        for block in due {
+            if out.isEmpty || lines + block.lines <= Double(lineBudget) {
+                out.append(block)
+                lines += block.lines
+            } else {
+                break
+            }
+        }
+        return out
     }
 
     /// Aggregates `HifzAyah` rows into one `PageState` per page, using the real
