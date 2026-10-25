@@ -59,10 +59,12 @@ struct HifzHomeView: View {
         HifzProgram.isSabaqUnlocked(sabqiCount: sabqi.count, sabqiClearedOn: state.sabqiClearedOn)
     }
 
-    /// Ayahs in today's Sabaq portion (already assigned today, or a sized preview).
+    /// Ayahs in today's Sabaq portion (already assigned today and still open, or a
+    /// sized preview of the next one).
     private var sabaqPortionCount: Int {
         if let assigned = state.sabaqAssignedOn,
-           Calendar.current.isDate(assigned, inSameDayAs: .now), !state.sabaqKeys.isEmpty {
+           Calendar.current.isDate(assigned, inSameDayAs: .now), !state.sabaqKeys.isEmpty,
+           !Set(state.sabaqKeys).isSubset(of: Set(state.sabaqConfirmedKeys)) {
             return state.sabaqKeys.count
         }
         return previewCount
@@ -84,12 +86,17 @@ struct HifzHomeView: View {
         ).count
     }
 
-    /// Today's Sabaq portion has been assigned and every ayah in it confirmed.
+    /// Today's lesson is finished — stays true while an optional extra portion runs.
     private var sabaqDoneToday: Bool {
-        guard let assigned = state.sabaqAssignedOn,
-              Calendar.current.isDate(assigned, inSameDayAs: .now),
-              !state.sabaqKeys.isEmpty else { return false }
-        return Set(state.sabaqKeys).isSubset(of: Set(state.sabaqConfirmedKeys))
+        HifzProgramManager.sabaqDoneToday(state: state, ayahs: ayahs)
+    }
+
+    private var sabqiDoneToday: Bool {
+        state.sabqiClearedOn.map { Calendar.current.isDateInToday($0) } ?? false
+    }
+
+    private var manzilDoneToday: Bool {
+        manzil.isEmpty && HifzProgramManager.manzilRevisedToday(ayahs)
     }
 
     /// Everything due today is cleared: recent work recited, a new lesson learned,
@@ -169,10 +176,15 @@ struct HifzHomeView: View {
     @ViewBuilder private var sabqiSection: some View {
         if !sabqi.isEmpty {
             Section {
-                PhaseCard(phase: .sabqi, count: sabqi.count,
-                          note: "Recite before starting a new lesson.") {
+                PhaseCard(phase: .sabqi, count: sabqi.count, done: sabqiDoneToday,
+                          note: sabqiDoneToday ? "Done today — a few ayahs still want another pass."
+                                               : "Recite before starting a new lesson.") {
                     active = ActiveSession(kind: .sabqi, ayahs: sabqi)
                 }
+            }
+        } else if sabqiDoneToday {
+            Section {
+                doneRow("Sabqi done today", note: "Recent work recited. It returns on its next due day.")
             }
         }
     }
@@ -180,7 +192,14 @@ struct HifzHomeView: View {
     private var sabaqSection: some View {
         Section {
             if sabaqDoneToday {
-                sabaqDone
+                if sabaqPortionCount > 0 {
+                    PhaseCard(phase: .sabaq, count: sabaqPortionCount, done: true,
+                              note: "Today's lesson is done. Have more time? Learn another portion — optional.") {
+                        startSabaq(extra: true)
+                    }
+                } else {
+                    doneRow("Today's lesson done", note: "New Sabaq confirmed. It returns for Sabqi on its next due day.")
+                }
             } else if sabaqUnlocked {
                 PhaseCard(phase: .sabaq, count: sabaqPortionCount,
                           note: "Learn a new portion. Confirm only on a flawless recall.") {
@@ -203,6 +222,10 @@ struct HifzHomeView: View {
                     active = ActiveSession(kind: .manzil, ayahs: manzil)
                 }
             }
+        } else if manzilDoneToday {
+            Section {
+                doneRow("Manzil done today", note: "Today's slice of the long-term cycle is revised.")
+            }
         }
     }
 
@@ -219,14 +242,14 @@ struct HifzHomeView: View {
         }
     }
 
-    private var sabaqDone: some View {
+    private func doneRow(_ title: String, note: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2).foregroundStyle(.green)
                 .frame(width: 34)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Today's lesson done").font(.body.weight(.medium))
-                Text("New Sabaq confirmed. It returns for Sabqi on its next due day.")
+                Text(title).font(.body.weight(.medium))
+                Text(note)
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -256,12 +279,13 @@ struct HifzHomeView: View {
 
     // MARK: - Actions
 
-    private func startSabaq() {
+    /// `extra` asks for another portion once today's lesson is done.
+    private func startSabaq(extra: Bool = false) {
         let rows = HifzProgramManager.ensureTodaysSabaq(
             state: state, existing: ayahs,
             manuallyMemorizedKeys: MemorizationCoverage.manuallyMemorizedAyahKeys(from: progress),
             settings: settings,
-            recentAccuracy: recentAccuracy, fromEnd: sabaqFromEnd, in: context
+            recentAccuracy: recentAccuracy, fromEnd: sabaqFromEnd, extra: extra, in: context
         )
         try? context.save()
         guard !rows.isEmpty else { return }
@@ -295,17 +319,20 @@ struct HifzHomeView: View {
 }
 
 /// A tappable phase card built from `HifzPhase`'s own label/subtitle/icon.
+/// `done` turns it green — today's share is finished — while staying tappable.
 private struct PhaseCard: View {
     let phase: HifzPhase
     let count: Int
+    var done = false
     let note: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
-                CardLabel(systemImage: phase.systemImage, title: phase.label,
-                          subtitle: phase.subtitle, count: count, tint: .accentColor)
+                CardLabel(systemImage: done ? "checkmark.circle.fill" : phase.systemImage,
+                          title: phase.label, subtitle: done ? "Done today" : phase.subtitle,
+                          count: count, tint: done ? .green : .accentColor)
                 Text(note).font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

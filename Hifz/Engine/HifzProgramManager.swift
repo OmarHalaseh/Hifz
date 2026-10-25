@@ -8,7 +8,9 @@ enum HifzProgramManager {
     // MARK: - Sabaq assignment
 
     /// Ensures a Sabaq portion is assigned for today, creating the `HifzAyah`
-    /// rows for it, and returns them. Re-assigning on the same day is a no-op.
+    /// rows for it, and returns them. Re-assigning on the same day is a no-op —
+    /// unless today's portion is already fully confirmed and `extra` is set, in
+    /// which case the next portion is assigned so a day with more time isn't capped.
     @discardableResult
     static func ensureTodaysSabaq(
         state: HifzProgramState,
@@ -17,15 +19,18 @@ enum HifzProgramManager {
         settings: AppSettings,
         recentAccuracy: Double,
         fromEnd: Bool = false,
+        extra: Bool = false,
         in context: ModelContext,
         now: Date = .now,
         calendar: Calendar = .current
     ) -> [HifzAyah] {
         let today = calendar.startOfDay(for: now)
 
-        // Already assigned today → return the current portion.
+        // Already assigned today → return the current portion (unless it's done
+        // and the user asked for more).
         if let assigned = state.sabaqAssignedOn, calendar.isDate(assigned, inSameDayAs: today),
-           !state.sabaqKeys.isEmpty {
+           !state.sabaqKeys.isEmpty,
+           !(extra && Set(state.sabaqKeys).isSubset(of: Set(state.sabaqConfirmedKeys))) {
             return state.sabaqKeys.compactMap { key in existing.first { $0.key == key } }
         }
 
@@ -33,6 +38,8 @@ enum HifzProgramManager {
             existing: existing, manuallyMemorizedKeys: manuallyMemorizedKeys,
             settings: settings, recentAccuracy: recentAccuracy, fromEnd: fromEnd
         )
+        // Nothing left to learn: keep the finished portion rather than wiping it.
+        if picked.isEmpty, extra { return [] }
 
         var rows: [HifzAyah] = []
         for atom in picked {
@@ -194,6 +201,41 @@ enum HifzProgramManager {
                                  intervalAfter: first.intervalDays))
         if !state.sabaqConfirmedKeys.contains(ayah.key) {
             state.sabaqConfirmedKeys.append(ayah.key)
+        }
+    }
+
+    // MARK: - Done today
+
+    /// Today's daily lesson is finished: the current portion is fully confirmed,
+    /// or an earlier portion was (an ayah confirmed today sits outside the current
+    /// portion, which only happens once an extra portion replaced a finished one).
+    /// Stays true while an optional extra portion is in progress.
+    static func sabaqDoneToday(
+        state: HifzProgramState,
+        ayahs: [HifzAyah],
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let assigned = state.sabaqAssignedOn,
+              calendar.isDate(assigned, inSameDayAs: now),
+              !state.sabaqKeys.isEmpty else { return false }
+        let current = Set(state.sabaqKeys)
+        if current.isSubset(of: Set(state.sabaqConfirmedKeys)) { return true }
+        return ayahs.contains { ayah in
+            guard let m = ayah.memorizedAt else { return false }
+            return calendar.isDate(m, inSameDayAs: now) && !current.contains(ayah.key)
+        }
+    }
+
+    /// Whether any long-term (Manzil) ayah was recited today.
+    static func manzilRevisedToday(
+        _ ayahs: [HifzAyah],
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> Bool {
+        ayahs.contains { ayah in
+            guard ayah.phase == .manzil, let r = ayah.lastReviewedAt else { return false }
+            return calendar.isDate(r, inSameDayAs: now)
         }
     }
 

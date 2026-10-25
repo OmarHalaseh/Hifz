@@ -52,6 +52,9 @@ struct DashboardView: View {
     private var sabaqUnlocked: Bool {
         HifzProgram.isSabaqUnlocked(sabqiCount: sabqiDue, sabqiClearedOn: hifzStateList.first?.sabqiClearedOn)
     }
+    private var sabaqDoneToday: Bool {
+        hifzStateList.first.map { HifzProgramManager.sabaqDoneToday(state: $0, ayahs: hifzAyahs) } ?? false
+    }
 
     var body: some View {
         NavigationStack {
@@ -125,17 +128,19 @@ struct DashboardView: View {
     @ViewBuilder
     private var hifzCard: some View {
         let showSabqi = sabqiDue > 0
+        let done = !showSabqi && sabaqDoneToday
         Button(action: onOpenHifz) {
             HStack(spacing: 14) {
-                Image(systemName: showSabqi ? "clock.arrow.circlepath" : "sparkles")
+                Image(systemName: showSabqi ? "clock.arrow.circlepath" : (done ? "checkmark.circle.fill" : "sparkles"))
                     .font(.title)
                     .foregroundStyle(.white)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(showSabqi ? "Sabqi · \(sabqiDue) to recite" : "Sabaq · New lesson")
+                    Text(showSabqi ? "Sabqi · \(sabqiDue) to recite" : (done ? "Today's lesson done" : "Sabaq · New lesson"))
                         .font(.headline)
                         .foregroundStyle(.white)
                     Text(showSabqi
                          ? "Recite recent memorization, then unlock a new lesson."
+                         : done ? "Have more time? You can learn another portion."
                          : (sabaqUnlocked ? "Start today's portion — quality over speed."
                                           : "Clear today's Sabqi to unlock a new lesson."))
                         .font(.caption)
@@ -146,7 +151,7 @@ struct DashboardView: View {
             }
             .padding()
             .background(
-                LinearGradient(colors: showSabqi ? [.orange, .pink] : [.purple, .indigo],
+                LinearGradient(colors: showSabqi ? [.orange, .pink] : (done ? [.green, .teal] : [.purple, .indigo]),
                                startPoint: .topLeading, endPoint: .bottomTrailing),
                 in: RoundedRectangle(cornerRadius: 18)
             )

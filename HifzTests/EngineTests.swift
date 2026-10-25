@@ -203,6 +203,53 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(rows.first?.surah, 113)
     }
 
+    /// Finishing today's lesson must not cap the day: asking for more assigns the
+    /// next portion, and the lesson still counts as done while that extra runs.
+    func testExtraSabaqAfterFinishingTodaysLessonKeepsItDone() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Schema.current, migrationPlan: HifzMigrationPlan.self, configurations: config
+        )
+        let context = ModelContext(container)
+        let state = HifzProgramState()
+        context.insert(state)
+        func assign(extra: Bool) -> [HifzAyah] {
+            HifzProgramManager.ensureTodaysSabaq(
+                state: state, existing: (try? context.fetch(FetchDescriptor<HifzAyah>())) ?? [],
+                settings: AppSettings(), recentAccuracy: 1, fromEnd: true, extra: extra,
+                in: context, now: now, calendar: cal
+            )
+        }
+        func done() -> Bool {
+            HifzProgramManager.sabaqDoneToday(
+                state: state, ayahs: (try? context.fetch(FetchDescriptor<HifzAyah>())) ?? [],
+                now: now, calendar: cal)
+        }
+
+        let first = assign(extra: false)
+        XCTAssertFalse(first.isEmpty)
+        XCTAssertFalse(done())
+        for a in first { HifzProgramManager.confirmFlawless(a, state: state, in: context, now: now) }
+        XCTAssertTrue(done())
+
+        // Without `extra`, the finished portion is simply returned again.
+        XCTAssertEqual(assign(extra: false).map(\.key), first.map(\.key))
+
+        let second = assign(extra: true)
+        XCTAssertFalse(second.isEmpty)
+        XCTAssertTrue(Set(second.map(\.key)).isDisjoint(with: first.map(\.key)))
+        XCTAssertTrue(done(), "today's lesson stays done while the extra portion is open")
+    }
+
+    func testManzilRevisedTodayOnlyCountsLongTermAyahsReviewedToday() {
+        let a = HifzAyah(surah: 1, ayah: 1, page: 1, juz: 1, phase: .manzil)
+        XCTAssertFalse(HifzProgramManager.manzilRevisedToday([a], now: now, calendar: cal))
+        a.lastReviewedAt = now
+        XCTAssertTrue(HifzProgramManager.manzilRevisedToday([a], now: now, calendar: cal))
+        a.phase = .sabqi
+        XCTAssertFalse(HifzProgramManager.manzilRevisedToday([a], now: now, calendar: cal))
+    }
+
     /// Regression: a day spent only on a new Sabaq lesson — nothing else was due —
     /// used to leave no `ReviewLog` at all, so the streak stayed at 0 on exactly the
     /// days a beginner needs the encouragement. Confirming an ayah now logs the
