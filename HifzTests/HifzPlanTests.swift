@@ -131,4 +131,34 @@ final class HifzPlanTests: XCTestCase {
         XCTAssertTrue(keys.contains("78:1"))
         XCTAssertEqual(juzProgress.status, .learning)
     }
+
+    /// Regression: un-marking the surah of today's Sabaq deleted its rows but left
+    /// the assignment pointing at them, so the Sabaq card showed a stale count and
+    /// tapping it opened nothing. The assignment must drop them and re-pick.
+    func testUnmarkingTodaysSabaqSurahReassignsLesson() throws {
+        let context = try inMemoryContext()
+        let state = HifzProgramState.current(in: context)
+        func rows() -> [HifzAyah] { (try? context.fetch(FetchDescriptor<HifzAyah>())) ?? [] }
+        func assign() -> [HifzAyah] {
+            HifzProgramManager.ensureTodaysSabaq(
+                state: state, existing: rows(), settings: AppSettings(),
+                recentAccuracy: 1, fromEnd: true, in: context)
+        }
+
+        let lesson = assign()
+        XCTAssertEqual(lesson.first?.surah, 114)
+        // Mark An-Nās memorized, then take it back.
+        let unit = QuranData.units(for: .surah).first { $0.surahNumber == 114 }!
+        let progress = ProgressManager.progress(for: unit, existing: [], in: context)
+        ProgressManager.setStatus(.memorized, for: progress)
+        HifzProgramManager.seedMemorized(units: [unit], existing: rows(), in: context)
+        HifzProgramManager.unmark(units: [unit], existing: rows(), progress: [progress], in: context)
+        try context.save()
+
+        XCTAssertFalse(state.sabaqKeys.contains { $0.hasPrefix("114:") })
+        let again = assign()
+        XCTAssertFalse(again.isEmpty)
+        XCTAssertEqual(again.first?.surah, 114)
+        XCTAssertTrue(again.allSatisfy { !$0.isMemorized })
+    }
 }

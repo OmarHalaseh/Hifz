@@ -149,6 +149,7 @@ struct HifzHomeView: View {
             if complete { celebrateIfNeeded() }
         }
         .onAppear { celebrateIfNeeded() }
+        .onChange(of: ayahs.count) { closeSessionIfRowsDeleted() }
         .task(id: previewSignature) { refreshPreviewCount() }
         .sheet(isPresented: $showDailyComplete) {
             DailyCompleteView(
@@ -300,6 +301,14 @@ struct HifzHomeView: View {
         guard celebratedOn != today else { return }
         celebratedOn = today
         showDailyComplete = true
+    }
+
+    /// Un-marking a surah elsewhere deletes its `HifzAyah` rows. A session still
+    /// open on them would read deleted models, so close it instead.
+    private func closeSessionIfRowsDeleted() {
+        guard let session = active,
+              session.ayahs.contains(where: { $0.isDeleted || $0.modelContext == nil }) else { return }
+        active = nil
     }
 
     private func finish(_ kind: HifzSessionView.Kind) {

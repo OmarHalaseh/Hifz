@@ -31,7 +31,16 @@ enum HifzProgramManager {
         if let assigned = state.sabaqAssignedOn, calendar.isDate(assigned, inSameDayAs: today),
            !state.sabaqKeys.isEmpty,
            !(extra && Set(state.sabaqKeys).isSubset(of: Set(state.sabaqConfirmedKeys))) {
-            return state.sabaqKeys.compactMap { key in existing.first { $0.key == key } }
+            let rows = state.sabaqKeys.compactMap { key in existing.first { $0.key == key } }
+            if rows.count == state.sabaqKeys.count { return rows }
+            // A row vanished under the assignment. Returning the survivors would hand
+            // back an empty or partial lesson, so drop it and pick afresh.
+            resetSabaqAssignment(state, rows: existing, in: context)
+            return ensureTodaysSabaq(
+                state: state, existing: existing.filter { !$0.isDeleted },
+                manuallyMemorizedKeys: manuallyMemorizedKeys, settings: settings,
+                recentAccuracy: recentAccuracy, fromEnd: fromEnd, extra: extra,
+                in: context, now: now, calendar: calendar)
         }
 
         let picked = sabaqPortionAtoms(
@@ -57,6 +66,19 @@ enum HifzProgramManager {
         state.sabaqKeys = rows.map(\.key)
         state.sabaqConfirmedKeys = []
         return rows
+    }
+
+    /// Clears today's Sabaq assignment, deleting its not-yet-memorized rows: they
+    /// carry no history, and left behind they would count as "in progress" and be
+    /// skipped by the next lesson.
+    static func resetSabaqAssignment(_ state: HifzProgramState, rows: [HifzAyah], in context: ModelContext) {
+        let assigned = Set(state.sabaqKeys)
+        for row in rows where assigned.contains(row.key) && !row.isMemorized && !row.isDeleted {
+            context.delete(row)
+        }
+        state.sabaqKeys = []
+        state.sabaqConfirmedKeys = []
+        state.sabaqAssignedOn = nil
     }
 
     /// Today's Sabaq portion as plain atoms — creates no rows and writes no state.
@@ -164,6 +186,13 @@ enum HifzProgramManager {
 
         for row in rows where removed.contains(row.key) {
             context.delete(row)
+        }
+        // Today's Sabaq may point at the rows just deleted. Reset that lesson so the
+        // next tap assigns a fresh one (starting again at the un-marked ayahs);
+        // otherwise the card counts ghosts and opens nothing.
+        if let state = try? context.fetch(FetchDescriptor<HifzProgramState>()).first,
+           state.sabaqKeys.contains(where: removed.contains) {
+            resetSabaqAssignment(state, rows: rows, in: context)
         }
         for unit in units {
             // No row and nothing to record → don't create an empty one.

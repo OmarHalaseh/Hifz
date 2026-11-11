@@ -60,13 +60,10 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    ProgressRing(fraction: fraction)
-                        .frame(width: 200, height: 200)
-                        .padding(.top, 8)
-
-                    Text("\(memorizedCount) of \(totalUnits) \(granularity.shortLabel.lowercased())s memorized")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    ProgressOverviewCard(
+                        memorizedKeys: MemorizationCoverage.memorizedAyahKeys(program: hifzAyahs, progress: allProgress),
+                        inProgressKeys: Set(hifzAyahs.filter { !$0.isMemorized }.map(\.key))
+                    )
 
                     hifzCard
 
@@ -75,8 +72,6 @@ struct DashboardView: View {
                     GoalForecastCard(forecast: forecast) { showGoalSheet = true }
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        StatCard(value: "\(memorizedCount)", label: "Memorized", systemImage: "checkmark.seal.fill", tint: .green)
-                        StatCard(value: "\(learningCount)", label: "Learning", systemImage: "book.fill", tint: .orange)
                         StatCard(value: "\(streak)", label: "Day streak", systemImage: "flame.fill", tint: .pink)
                         StatCard(value: "\(reviewsToday)/\(settings.dailyGoal)", label: "Today's goal", systemImage: "target", tint: .accentColor)
                     }

@@ -30,6 +30,15 @@ struct HifzSessionView: View {
 
     /// Recommended number of times to repeat each new ayah while drilling Sabaq.
     private let repTarget = 7...10
+    /// Repetitions a connecting recap needs before you may move on.
+    private let recapMinReps = 3
+
+    /// Repetitions the current step needs before "Next" / "finish" unlocks — so
+    /// nothing is confirmed memorized without actually drilling it.
+    private var requiredReps: Int {
+        (currentStep?.isRecap ?? false) ? recapMinReps : repTarget.lowerBound
+    }
+    private var stepDrilled: Bool { reps >= requiredReps }
 
     init(kind: Kind, ayahs: [HifzAyah], state: HifzProgramState, onFinish: @escaping () -> Void = {}) {
         self.kind = kind
@@ -226,11 +235,11 @@ struct HifzSessionView: View {
     private var sabaqControls: some View {
         VStack(spacing: 10) {
             HStack {
-                Text(reps >= repTarget.lowerBound
+                Text(stepDrilled
                      ? "Repeated \(reps)× ✓"
-                     : "Repeated \(reps)× — aim for \(repTarget.lowerBound)–\(repTarget.upperBound)")
+                     : "Repeated \(reps)× — at least \(requiredReps) to continue")
                     .font(.subheadline)
-                    .foregroundStyle(reps >= repTarget.lowerBound ? Color.green : .secondary)
+                    .foregroundStyle(stepDrilled ? Color.green : .secondary)
                 Spacer()
                 Button {
                     reps += 1
@@ -246,11 +255,13 @@ struct HifzSessionView: View {
                     Label("Memorized — finish lesson", systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(!stepDrilled)
             } else {
                 Button { nextStep() } label: {
                     Label("Next", systemImage: "arrow.right").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(!stepDrilled)
             }
         }
     }
@@ -259,7 +270,7 @@ struct HifzSessionView: View {
     private var stepHint: String {
         guard let step = currentStep else { return "" }
         if step.isRecap {
-            return "Now connect these ayahs together from the start. Hide the text and recite them as one before moving on."
+            return "Now connect these ayahs together from the start — recite them as one at least \(recapMinReps) times, the last from memory."
         }
         if step.range.lowerBound == 0 {
             return "Repeat this ayah \(repTarget.lowerBound)–\(repTarget.upperBound) times until it flows. Hide it and recite from memory before continuing."
