@@ -26,6 +26,7 @@ private struct SettingsForm: View {
 
     /// Memorize surahs from the end of the mushaf first (An-Nās → Al-Fātiḥa).
     @AppStorage("sabaqFromEnd") private var sabaqFromEnd = true
+    @AppStorage(HifzProgram.passageLinesKey) private var passageLines = Int(HifzProgram.revisionPassageLines)
 
     /// The reciter used for per-ayah qari playback.
     @AppStorage(Qari.storageKey) private var qari: Qari = .alafasy
@@ -149,13 +150,21 @@ private struct SettingsForm: View {
                 }
                 .onChange(of: settings.sabaqUnit) { _, _ in save() }
 
+                Picker(selection: $passageLines) {
+                    ForEach(HifzProgram.passageLineOptions, id: \.lines) { option in
+                        Text("\(option.label) · \(option.lines) lines").tag(option.lines)
+                    }
+                } label: {
+                    Text("Revision passage size")
+                }
+
                 Toggle(isOn: $sabaqFromEnd) {
                     Label("Start from the end (An-Nās first)", systemImage: "arrow.up.and.down.text.horizontal")
                 }
             } header: {
                 Text("Memorization")
             } footer: {
-                Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.\n\nStart from the end memorizes the short surahs of Juzʼ ʻAmma first and works back toward Al-Baqara; turn it off to go in mushaf order from Al-Fātiḥa.")
+                Text("How much new material a daily Sabaq covers — a row, quarter-page, half-page, or full page. It flexes a little with your recent accuracy.\n\nRevision passage size is how much of a surah you recite in one go during Sabqi and Manzil before checking it.\n\nStart from the end memorizes the short surahs of Juzʼ ʻAmma first and works back toward Al-Baqara; turn it off to go in mushaf order from Al-Fātiḥa.")
             }
 
             Section {

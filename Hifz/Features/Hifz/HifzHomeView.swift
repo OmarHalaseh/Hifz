@@ -233,9 +233,14 @@ struct HifzHomeView: View {
     @ViewBuilder private var weakLinkSection: some View {
         if !weakLinks.isEmpty {
             Section {
-                Button { active = ActiveSession(kind: .weakLinks, ayahs: weakLinks) } label: {
+                Button {
+                    // Recitation order, so neighbouring weak ayahs join into one passage.
+                    active = ActiveSession(
+                        kind: .weakLinks,
+                        ayahs: weakLinks.sorted(by: HifzProgram.mushafOrder(fromEnd: sabaqFromEnd)))
+                } label: {
                     CardLabel(systemImage: "exclamationmark.triangle.fill",
-                              title: "Weak links", subtitle: "Ayahs missed repeatedly — extra reps.",
+                              title: "Weak links", subtitle: "Missed repeatedly — recite each with its run-up.",
                               count: weakLinks.count, tint: .orange)
                 }
                 .buttonStyle(.plain)

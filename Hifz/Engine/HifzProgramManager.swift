@@ -79,6 +79,8 @@ enum HifzProgramManager {
         state.sabaqKeys = []
         state.sabaqConfirmedKeys = []
         state.sabaqAssignedOn = nil
+        // The remembered drill position belongs to the lesson just dropped.
+        UserDefaults.standard.removeObject(forKey: HifzProgram.sabaqDrillLessonKey)
     }
 
     /// Today's Sabaq portion as plain atoms — creates no rows and writes no state.
@@ -279,9 +281,14 @@ enum HifzProgramManager {
 
     /// A correct recall in Sabqi/Manzil: advance SM-2, promote Sabqi→Manzil once
     /// it ages past the 7-day window, and log it.
+    ///
+    /// `healsWeakLink` (the weak-link drill) also takes one mistake off the ayah's
+    /// counter. Without that the counter only ever grows, so an ayah that once
+    /// became a weak link stayed one forever — and the day could never be complete.
     static func recordCorrect(
         _ ayah: HifzAyah,
         rating: ReviewRating = .good,
+        healsWeakLink: Bool = false,
         in context: ModelContext,
         now: Date = .now,
         calendar: Calendar = .current
@@ -299,10 +306,12 @@ enum HifzProgramManager {
         ayah.repetitions = next.repetitions
         ayah.dueDate = next.dueDate
         ayah.lastReviewedAt = next.lastReviewedAt
+        if healsWeakLink { ayah.mistakeCount = max(0, ayah.mistakeCount - 1) }
 
         // Age out of the recent-revision window into the long-term cycle.
         if ayah.phase == .sabqi, let m = ayah.memorizedAt,
-           let cutoff = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: now)),
+           let cutoff = calendar.date(byAdding: .day, value: -HifzPageScheduler.sabqiDays,
+                                     to: calendar.startOfDay(for: now)),
            m < cutoff {
             ayah.phase = .manzil
         }

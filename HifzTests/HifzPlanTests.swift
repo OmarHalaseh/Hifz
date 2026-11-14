@@ -61,19 +61,31 @@ final class HifzPlanTests: XCTestCase {
 
     // MARK: - Plan
 
-    /// Lessons are laid out one portion per day, and a surah's date range spans
-    /// every day it takes.
+    /// 114: 6 one-line ayahs, 113: 5 one-line ayahs, at 5 lines/day. Ayah 6 of
+    /// An-Nās is a sliver, so it's folded into day 1 instead of opening day 2 —
+    /// and Al-Falaq therefore starts at its first ayah on its own day.
     func testSabaqScheduleDatesEachSurah() {
-        // Surah 114: 6 ayahs × 1 line; surah 113: 5 ayahs × 1 line; 5 lines/day.
         let unlearned = (1...6).map { (surah: 114, ayah: $0) } + (1...5).map { (surah: 113, ayah: $0) }
         let plan = HifzPlan.sabaqSchedule(unlearned: unlearned, lines: 5, start: now,
                                           lineCost: { _, _ in 1 })
         XCTAssertEqual(plan.map(\.surah), [114, 113])
         XCTAssertEqual(plan[0].startDay, 0)
-        XCTAssertEqual(plan[0].endDay, 1)          // ayah 6 spills into day 2
+        XCTAssertEqual(plan[0].endDay, 0)
+        XCTAssertEqual(plan[1].firstAyah, 1)
         XCTAssertEqual(plan[1].startDay, 1)
-        XCTAssertEqual(plan[1].endDay, 2)
-        XCTAssertEqual(plan[1].days, 2)
+        XCTAssertEqual(plan[1].endDay, 1)
+    }
+
+    /// The plan never has two surahs sharing a day unless the later one is learned
+    /// whole that day: a long surah's lessons stop at its end.
+    func testSabaqScheduleStartsALongSurahOnItsOwnDay() {
+        // Surah 3: 4 lines left; surah 2: 20 lines. 5 lines/day.
+        let unlearned = (1...4).map { (surah: 3, ayah: $0) } + (1...20).map { (surah: 2, ayah: $0) }
+        let plan = HifzPlan.sabaqSchedule(unlearned: unlearned, lines: 5, start: now,
+                                          lineCost: { _, _ in 1 })
+        XCTAssertEqual(plan[0].endDay, 0)
+        XCTAssertEqual(plan[1].startDay, 1)   // not squeezed onto the end of day 0
+        XCTAssertEqual(plan[1].endDay, 4)     // 20 lines at 5 a day
     }
 
     /// Every block shows up in the forecast within the 30-day cap, and a block

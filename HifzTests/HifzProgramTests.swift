@@ -9,6 +9,7 @@ import SwiftData
 final class HifzProgramTests: XCTestCase {
 
     private let cal = Calendar.current
+    private let now = Date()
 
     /// A throwaway in-memory store for the few calls that write log rows.
     private func inMemoryContext() throws -> ModelContext {
@@ -236,6 +237,125 @@ final class HifzProgramTests: XCTestCase {
     }
 
     // MARK: - Weak links
+
+
+    // MARK: - Lessons end at the surah
+
+    private func atoms(_ surah: Int, _ count: Int) -> [(surah: Int, ayah: Int, page: Int, juz: Int)] {
+        (1...count).map { (surah: surah, ayah: $0, page: 1, juz: 1) }
+    }
+
+    /// A lesson that reaches the end of a surah stops there: the next surah is too
+    /// long to fit, so it begins at ayah 1 of the *next* lesson rather than being
+    /// started as the tail of this one.
+    func testSabaqPortionStopsAtEndOfSurahSoNextSurahStartsAtAyahOne() {
+        let all = atoms(3, 3) + atoms(2, 20)
+        let first = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: all, memorizedOrInProgressKeys: [], lines: 5, lineCost: { _, _ in 1 })
+        XCTAssertEqual(first.map(\.surah), [3, 3, 3])   // 2 lines of budget left unused
+
+        let done = Set(first.map { HifzAyah.makeKey(surah: $0.surah, ayah: $0.ayah) })
+        let second = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: all, memorizedOrInProgressKeys: done, lines: 5, lineCost: { _, _ in 1 })
+        XCTAssertEqual(second.first?.surah, 2)
+        XCTAssertEqual(second.first?.ayah, 1)
+        XCTAssertEqual(second.count, 5)
+    }
+
+    /// Short surahs that fit whole are still learned together — otherwise a
+    /// half-page lesson in Juzʼ ʻAmma would shrink to one three-line surah.
+    func testSabaqPortionTakesFollowingSurahsThatFitWhole() {
+        let all = atoms(114, 2) + atoms(113, 2) + atoms(112, 4)
+        let picked = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: all, memorizedOrInProgressKeys: [], lines: 5, lineCost: { _, _ in 1 })
+        // 114 + 113 fit (4 lines); 112 whole would make 8 → left for the next lesson.
+        XCTAssertEqual(picked.map(\.surah), [114, 114, 113, 113])
+    }
+
+    /// One leftover ayah isn't worth a lesson of its own: it's folded in.
+    func testSabaqPortionFoldsInAShortSurahTail() {
+        let picked = HifzProgram.nextSabaqAtoms(
+            orderedAtoms: atoms(3, 6) + atoms(2, 20), memorizedOrInProgressKeys: [],
+            lines: 5, lineCost: { _, _ in 1 })
+        XCTAssertEqual(picked.count, 6)
+        XCTAssertTrue(picked.allSatisfy { $0.surah == 3 })
+    }
+
+    // MARK: - Sabaq drill steps
+
+    private func ranges(_ steps: [ClosedRange<Int>]) -> [[Int]] { steps.map { [$0.lowerBound, $0.upperBound] } }
+
+    /// A short lesson fits in the recap window, so it stays fully cumulative:
+    /// [0], [1], [0…1], [2], [0…2] — and needs no extra final step.
+    func testDrillStepsStayCumulativeForAShortLesson() {
+        let steps = HifzProgram.drillSteps(costs: [1, 1, 1], recapLines: 5)
+        XCTAssertEqual(ranges(steps), [[0, 0], [1, 1], [0, 1], [2, 2], [0, 2]])
+    }
+
+    /// On a long lesson a recap only reaches back about `recapLines` — always at
+    /// least to the previous ayah — and one last step recites the whole lesson.
+    func testDrillStepsUseASlidingWindowAndEndWithTheWholeLesson() {
+        let steps = HifzProgram.drillSteps(costs: [3, 3, 3, 3], recapLines: 5)
+        XCTAssertEqual(ranges(steps),
+                       [[0, 0], [1, 1], [0, 1], [2, 2], [1, 2], [3, 3], [2, 3], [0, 3]])
+    }
+
+    func testDrillStepsForOneAyahIsASingleStep() {
+        XCTAssertEqual(ranges(HifzProgram.drillSteps(costs: [2])), [[0, 0]])
+        XCTAssertTrue(HifzProgram.drillSteps(costs: []).isEmpty)
+    }
+
+    // MARK: - Revision passages
+
+    /// The passage size is the user's choice; unset falls back to half a page.
+    func testStoredPassageLinesFallsBackToDefault() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "passage-lines-test"))
+        defaults.removePersistentDomain(forName: "passage-lines-test")
+        XCTAssertEqual(HifzProgram.storedPassageLines(defaults), HifzProgram.revisionPassageLines)
+        defaults.set(15, forKey: HifzProgram.passageLinesKey)
+        XCTAssertEqual(HifzProgram.storedPassageLines(defaults), 15)
+        defaults.removePersistentDomain(forName: "passage-lines-test")
+    }
+
+    /// Revision is recited as connected stretches of a surah, never ayah by ayah:
+    /// consecutive ayahs join, a gap or a new surah starts a new passage.
+    func testPassagesJoinConsecutiveAyahsAndBreakAtGapsAndSurahs() {
+        let rows = [ayah(surah: 2, ayah: 1, page: 2, daysAgo: 20, now: now),
+                    ayah(surah: 2, ayah: 2, page: 2, daysAgo: 20, now: now),
+                    ayah(surah: 2, ayah: 3, page: 2, daysAgo: 20, now: now),
+                    ayah(surah: 2, ayah: 7, page: 2, daysAgo: 20, now: now),
+                    ayah(surah: 3, ayah: 1, page: 50, daysAgo: 20, now: now)]
+        let passages = HifzProgram.passages(rows, maxLines: 8, lineCost: { _, _ in 1 })
+        XCTAssertEqual(passages.map { $0.map(\.ayah) }, [[1, 2, 3], [7], [1]])
+    }
+
+    /// A long run is split into evenly sized passages (10 lines → 5 + 5), not a
+    /// full one and a leftover.
+    func testPassagesSplitALongRunEvenly() {
+        let rows = (1...10).map { ayah(surah: 2, ayah: $0, page: 2, daysAgo: 20, now: now) }
+        let passages = HifzProgram.passages(rows, maxLines: 8, lineCost: { _, _ in 1 })
+        XCTAssertEqual(passages.map(\.count), [5, 5])
+        XCTAssertEqual(passages.flatMap { $0 }.map(\.ayah), Array(1...10))
+    }
+
+    // MARK: - Weak links
+
+    /// A weak link has to be able to heal: a correct recall in the weak-link drill
+    /// takes a mistake off, so the ayah eventually drops out of the list.
+    func testCorrectWeakLinkRecallHealsIt() throws {
+        let context = try inMemoryContext()
+        let weak = ayah(ayah: 2, page: 1, daysAgo: 20, now: now, mistakes: 3)
+        context.insert(weak)
+        XCTAssertEqual(HifzProgram.weakLinks([weak]).count, 1)
+
+        HifzProgramManager.recordCorrect(weak, rating: .hard, healsWeakLink: true, in: context, now: now)
+        XCTAssertEqual(weak.mistakeCount, 2)
+        XCTAssertTrue(HifzProgram.weakLinks([weak]).isEmpty)
+
+        // An ordinary revision pass leaves the counter alone.
+        HifzProgramManager.recordCorrect(weak, in: context, now: now)
+        XCTAssertEqual(weak.mistakeCount, 2)
+    }
 
     func testWeakLinksSurfaceRepeatedlyMissedMemorizedAyahsWorstFirst() {
         let now = Date()

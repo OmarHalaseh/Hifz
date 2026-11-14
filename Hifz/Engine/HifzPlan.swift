@@ -26,9 +26,9 @@ enum HifzPlan {
 
     /// Lays out the still-unlearned ayahs (already in learning order) as one Sabaq
     /// portion per day, starting on `start`, using the same line-measured portion
-    /// rule as the real lesson (`HifzProgram.nextSabaqAtoms(…lines:…)`): an ayah
-    /// joins a day while it brings the day nearer to `lines` than stopping would.
-    /// A day's portion can run across a surah boundary, exactly as a real lesson can.
+    /// rule as the real lesson (`HifzProgram.portionCount`): an ayah joins a day
+    /// while it brings the day nearer to `lines` than stopping would, and a day
+    /// ends at the end of a surah unless the next surah fits whole.
     static func sabaqSchedule(
         unlearned: [(surah: Int, ayah: Int)],
         lines: Int,
@@ -36,12 +36,10 @@ enum HifzPlan {
         lineCost: (Int, Int) -> Double = { MushafLayout.lineCost(surah: $0, ayah: $1) },
         calendar: Calendar = .current
     ) -> [SurahLesson] {
-        let target = Double(max(1, lines))
         let day0 = calendar.startOfDay(for: start)
         func date(_ d: Int) -> Date { calendar.date(byAdding: .day, value: d, to: day0) ?? day0 }
 
         var out: [SurahLesson] = []
-        var day = 0, total = 0.0, inDay = 0
         var current: (surah: Int, first: Int, last: Int, startDay: Int, endDay: Int)?
 
         func flush() {
@@ -51,18 +49,22 @@ enum HifzPlan {
                                    start: date(c.startDay), end: date(c.endDay)))
         }
 
-        for atom in unlearned {
-            let cost = max(0, lineCost(atom.surah, atom.ayah))
-            if inDay > 0, total + cost / 2 > target {
-                day += 1; total = 0; inDay = 0
+        var index = 0, day = 0
+        while index < unlearned.count {
+            let taken = max(1, HifzProgram.portionCount(
+                count: unlearned.count, from: index, lines: lines,
+                surah: { unlearned[$0].surah },
+                cost: { lineCost(unlearned[$0].surah, unlearned[$0].ayah) }))
+            for atom in unlearned[index..<min(unlearned.count, index + taken)] {
+                if let c = current, c.surah == atom.surah {
+                    current = (c.surah, c.first, atom.ayah, c.startDay, day)
+                } else {
+                    flush()
+                    current = (atom.surah, atom.ayah, atom.ayah, day, day)
+                }
             }
-            total += cost; inDay += 1
-            if let c = current, c.surah == atom.surah {
-                current = (c.surah, c.first, atom.ayah, c.startDay, day)
-            } else {
-                flush()
-                current = (atom.surah, atom.ayah, atom.ayah, day, day)
-            }
+            index += taken
+            day += 1
         }
         flush()
         return out
